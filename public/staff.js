@@ -938,6 +938,374 @@ async function loadAnalysis() {
     }
 }
 
+// ===== 일일입력 날짜 이동 =====
+function changeDailyDate(days) {
+    const dateInput = document.getElementById('accDate');
+    if (!dateInput) return;
+    
+    const currentDate = new Date(dateInput.value);
+    currentDate.setDate(currentDate.getDate() + days);
+    
+    const newDateStr = currentDate.toISOString().split('T')[0];
+    dateInput.value = newDateStr;
+    loadDailyData();
+}
+
+function goToToday() {
+    const dateInput = document.getElementById('accDate');
+    if (!dateInput) return;
+    
+    const today = new Date().toISOString().split('T')[0];
+    dateInput.value = today;
+    loadDailyData();
+}
+
+// ===== 입력내역 월 이동 =====
+function changeHistoryMonth(months) {
+    historyMonth.setMonth(historyMonth.getMonth() + months);
+    updateMonthDisplays();
+    loadHistory();
+}
+
+function goToCurrentMonth() {
+    historyMonth = new Date();
+    updateMonthDisplays();
+    loadHistory();
+}
+
+// ===== 예상순익 월 이동 =====
+function changePredMonth(months) {
+    predMonth.setMonth(predMonth.getMonth() + months);
+    updateMonthDisplays();
+    renderPrediction();
+}
+
+function goToPredCurrentMonth() {
+    predMonth = new Date();
+    updateMonthDisplays();
+    renderPrediction();
+}
+
+// ===== 월간분석 월 이동 =====
+function changeDashMonth(months) {
+    dashMonth.setMonth(dashMonth.getMonth() + months);
+    updateMonthDisplays();
+    renderDashboard();
+}
+
+function goToDashCurrentMonth() {
+    dashMonth = new Date();
+    updateMonthDisplays();
+    renderDashboard();
+}
+
+// ===== 월 표시 업데이트 =====
+function updateMonthDisplays() {
+    const historyDisplay = document.getElementById('historyMonthDisplay');
+    if (historyDisplay) {
+        historyDisplay.textContent = `${historyMonth.getFullYear()}년 ${historyMonth.getMonth() + 1}월`;
+    }
+    
+    const predDisplay = document.getElementById('predMonthDisplay');
+    if (predDisplay) {
+        predDisplay.textContent = `${predMonth.getFullYear()}년 ${predMonth.getMonth() + 1}월`;
+    }
+    
+    const dashDisplay = document.getElementById('dashMonthDisplay');
+    if (dashDisplay) {
+        dashDisplay.textContent = `${dashMonth.getFullYear()}년 ${dashMonth.getMonth() + 1}월`;
+    }
+}
+
+// ===== 입력내역 로드 =====
+async function loadHistory() {
+    const yearMonth = `${historyMonth.getFullYear()}-${String(historyMonth.getMonth() + 1).padStart(2, '0')}`;
+    
+    try {
+        const res = await fetch(`/api/accounting/history?month=${yearMonth}`);
+        const data = await res.json();
+        
+        if (data.success) {
+            renderHistory(data.history);
+        }
+    } catch (e) {
+        console.error('입력내역 로드 실패:', e);
+    }
+}
+
+function renderHistory(history) {
+    const container = document.getElementById('historyList');
+    if (!container) return;
+    
+    if (history.length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:#999; padding:40px;">입력된 데이터가 없습니다.</p>';
+        return;
+    }
+    
+    // 날짜별로 정렬 (최신순)
+    history.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    let html = '<div style="display:grid; gap:15px;">';
+    
+    history.forEach(item => {
+        const date = new Date(item.date);
+        const dateStr = `${date.getMonth() + 1}월 ${date.getDate()}일 (${['일','월','화','수','목','금','토'][date.getDay()]})`;
+        
+        const b1Total = (item.b1_card || 0) + (item.b1_cash || 0) + (item.b1_delivery || 0);
+        const b3Total = (item.b3_card || 0) + (item.b3_cash || 0) + (item.b3_delivery || 0);
+        const grandTotal = b1Total + b3Total;
+        const expenseTotal = (item.ex_gosen || 0) + (item.ex_hangang || 0) + (item.ex_etc || 0);
+        
+        html += `
+            <div style="background:white; border:1px solid #ddd; border-radius:8px; padding:15px; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding-bottom:10px; border-bottom:2px solid #eee;">
+                    <div>
+                        <div style="font-size:16px; font-weight:bold; color:#333;">${dateStr}</div>
+                        <div style="font-size:12px; color:#999; margin-top:3px;">통합 매출: ${grandTotal.toLocaleString()}원</div>
+                    </div>
+                    <button onclick="goToEditDate('${item.date}')" style="background:#1976d2; color:white; border:none; padding:6px 12px; border-radius:5px; cursor:pointer; font-size:12px;">
+                        ✏️ 수정
+                    </button>
+                </div>
+                
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:10px;">
+                    <div style="background:#e3f2fd; padding:10px; border-radius:5px;">
+                        <div style="font-size:11px; color:#1976d2; margin-bottom:5px;">⚾ 1루 매출</div>
+                        <div style="font-size:15px; font-weight:bold; color:#1976d2;">${b1Total.toLocaleString()}원</div>
+                        <div style="font-size:10px; color:#666; margin-top:3px;">
+                            카드 ${(item.b1_card || 0).toLocaleString()} | 현금 ${(item.b1_cash || 0).toLocaleString()} | 배달 ${(item.b1_delivery || 0).toLocaleString()}
+                        </div>
+                    </div>
+                    <div style="background:#fbe9e7; padding:10px; border-radius:5px;">
+                        <div style="font-size:11px; color:#e64a19; margin-bottom:5px;">⚾ 3루 매출</div>
+                        <div style="font-size:15px; font-weight:bold; color:#e64a19;">${b3Total.toLocaleString()}원</div>
+                        <div style="font-size:10px; color:#666; margin-top:3px;">
+                            카드 ${(item.b3_card || 0).toLocaleString()} | 현금 ${(item.b3_cash || 0).toLocaleString()} | 배달 ${(item.b3_delivery || 0).toLocaleString()}
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="background:#fff3cd; padding:10px; border-radius:5px;">
+                    <div style="font-size:11px; color:#f57f17; margin-bottom:5px;">💸 공통 지출 (${expenseTotal.toLocaleString()}원)</div>
+                    <div style="font-size:10px; color:#666;">
+                        고센 ${(item.ex_gosen || 0).toLocaleString()} | 한강 ${(item.ex_hangang || 0).toLocaleString()} | 기타 ${(item.ex_etc || 0).toLocaleString()}
+                    </div>
+                    ${item.ex_note ? `<div style="font-size:10px; color:#999; margin-top:5px; font-style:italic;">📝 ${item.ex_note}</div>` : ''}
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// 수정 버튼 클릭 시 일일입력 탭으로 이동
+function goToEditDate(dateStr) {
+    document.getElementById('accDate').value = dateStr;
+    switchAccSubTab('daily-input');
+    loadDailyData();
+}
+
+// ===== 예상순익 렌더링 =====
+async function renderPrediction() {
+    const storeType = document.getElementById('predStoreSelect').value;
+    const yearMonth = `${predMonth.getFullYear()}-${String(predMonth.getMonth() + 1).padStart(2, '0')}`;
+    
+    try {
+        const res = await fetch(`/api/accounting/prediction?month=${yearMonth}&store=${storeType}`);
+        const data = await res.json();
+        
+        if (data.success) {
+            displayPrediction(data.analysis);
+        }
+    } catch (e) {
+        console.error('예상순익 로드 실패:', e);
+    }
+}
+
+function displayPrediction(analysis) {
+    const container = document.getElementById('predictionResult');
+    if (!container) return;
+    
+    const {
+        totalSales = 0,
+        totalExpense = 0,
+        commissionFee = 0,
+        deliveryFee = 0,
+        fixedCost = 0,
+        totalCost = 0,
+        netProfit = 0,
+        margin = 0,
+        daysElapsed = 0,
+        daysInMonth = 0
+    } = analysis;
+    
+    const profitColor = netProfit >= 0 ? '#2e7d32' : '#d32f2f';
+    
+    let html = `
+        <div style="background:#f8f9fa; padding:15px; border-radius:8px; margin-bottom:20px;">
+            <div style="font-size:13px; color:#666; margin-bottom:10px;">
+                📅 분석 기준: ${daysElapsed}일 / ${daysInMonth}일 경과 (${((daysElapsed/daysInMonth)*100).toFixed(1)}%)
+            </div>
+        </div>
+        
+        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:15px; margin-bottom:25px;">
+            <div style="background:linear-gradient(135deg, #1976d2, #42a5f5); color:white; padding:20px; border-radius:10px; box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+                <div style="font-size:13px; opacity:0.9; margin-bottom:5px;">💰 총 매출</div>
+                <div style="font-size:24px; font-weight:bold;">${totalSales.toLocaleString()}원</div>
+            </div>
+            <div style="background:linear-gradient(135deg, #f57c00, #ff9800); color:white; padding:20px; border-radius:10px; box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+                <div style="font-size:13px; opacity:0.9; margin-bottom:5px;">💸 총 비용</div>
+                <div style="font-size:24px; font-weight:bold;">${totalCost.toLocaleString()}원</div>
+            </div>
+            <div style="background:linear-gradient(135deg, ${netProfit >= 0 ? '#2e7d32, #43a047' : '#d32f2f, #f44336'}); color:white; padding:20px; border-radius:10px; box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+                <div style="font-size:13px; opacity:0.9; margin-bottom:5px;">📊 예상 순익</div>
+                <div style="font-size:24px; font-weight:bold;">${netProfit.toLocaleString()}원</div>
+                <div style="font-size:12px; opacity:0.8; margin-top:5px;">마진율: ${margin.toFixed(1)}%</div>
+            </div>
+        </div>
+        
+        <div style="background:white; border:1px solid #ddd; border-radius:8px; padding:20px;">
+            <h4 style="margin:0 0 15px 0; color:#333;">📉 비용 상세 내역</h4>
+            <div style="display:grid; gap:10px;">
+                <div style="display:flex; justify-content:space-between; padding:10px; background:#f8f9fa; border-radius:5px;">
+                    <span style="color:#666;">🛒 일일 지출 (고센+한강+기타)</span>
+                    <strong>${totalExpense.toLocaleString()}원</strong>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:10px; background:#f8f9fa; border-radius:5px;">
+                    <span style="color:#666;">💳 수수료 (매출의 30%)</span>
+                    <strong>${commissionFee.toLocaleString()}원</strong>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:10px; background:#f8f9fa; border-radius:5px;">
+                    <span style="color:#666;">🛵 배달타자 수수료 (4.95%)</span>
+                    <strong>${deliveryFee.toLocaleString()}원</strong>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:10px; background:#e3f2fd; border-radius:5px;">
+                    <span style="color:#666;">🔧 월 고정비 (일할 계산)</span>
+                    <strong>${fixedCost.toLocaleString()}원</strong>
+                </div>
+                <div style="display:flex; justify-content:space-between; padding:12px; background:#fff3cd; border-radius:5px; border-top:2px solid #fbc02d;">
+                    <span style="font-weight:bold; color:#f57f17;">합계</span>
+                    <strong style="font-size:18px; color:#f57f17;">${totalCost.toLocaleString()}원</strong>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+}
+
+// ===== 월간분석 렌더링 =====
+async function renderDashboard() {
+    const storeType = document.getElementById('dashStoreSelect').value;
+    const yearMonth = `${dashMonth.getFullYear()}-${String(dashMonth.getMonth() + 1).padStart(2, '0')}`;
+    
+    try {
+        const res = await fetch(`/api/accounting/dashboard?month=${yearMonth}&store=${storeType}`);
+        const data = await res.json();
+        
+        if (data.success) {
+            displayDashboard(data.analysis);
+        }
+    } catch (e) {
+        console.error('월간분석 로드 실패:', e);
+    }
+}
+
+function displayDashboard(analysis) {
+    const container = document.getElementById('dashboardResult');
+    if (!container) return;
+    
+    const {
+        totalSales = 0,
+        salesByType = {},
+        totalExpense = 0,
+        commissionFee = 0,
+        deliveryFee = 0,
+        fixedCost = 0,
+        totalCost = 0,
+        netProfit = 0,
+        margin = 0
+    } = analysis;
+    
+    const profitColor = netProfit >= 0 ? '#2e7d32' : '#d32f2f';
+    
+    let html = `
+        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:15px; margin-bottom:25px;">
+            <div style="background:linear-gradient(135deg, #1976d2, #42a5f5); color:white; padding:20px; border-radius:10px; box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+                <div style="font-size:13px; opacity:0.9; margin-bottom:5px;">💰 총 매출</div>
+                <div style="font-size:24px; font-weight:bold;">${totalSales.toLocaleString()}원</div>
+            </div>
+            <div style="background:linear-gradient(135deg, #f57c00, #ff9800); color:white; padding:20px; border-radius:10px; box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+                <div style="font-size:13px; opacity:0.9; margin-bottom:5px;">💸 총 비용</div>
+                <div style="font-size:24px; font-weight:bold;">${totalCost.toLocaleString()}원</div>
+            </div>
+            <div style="background:linear-gradient(135deg, ${netProfit >= 0 ? '#2e7d32, #43a047' : '#d32f2f, #f44336'}); color:white; padding:20px; border-radius:10px; box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+                <div style="font-size:13px; opacity:0.9; margin-bottom:5px;">📊 순수익</div>
+                <div style="font-size:24px; font-weight:bold;">${netProfit.toLocaleString()}원</div>
+                <div style="font-size:12px; opacity:0.8; margin-top:5px;">순이익률: ${margin.toFixed(1)}%</div>
+            </div>
+        </div>
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:20px;">
+            <div style="background:white; border:1px solid #ddd; border-radius:8px; padding:20px;">
+                <h4 style="margin:0 0 15px 0; color:#333;">💳 매출 구성</h4>
+                <div style="display:grid; gap:8px;">
+                    <div style="display:flex; justify-content:space-between; padding:8px; background:#f8f9fa; border-radius:4px;">
+                        <span>카드</span>
+                        <strong>${(salesByType.card || 0).toLocaleString()}원</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; padding:8px; background:#f8f9fa; border-radius:4px;">
+                        <span>현금</span>
+                        <strong>${(salesByType.cash || 0).toLocaleString()}원</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; padding:8px; background:#f8f9fa; border-radius:4px;">
+                        <span>배달타자</span>
+                        <strong>${(salesByType.delivery || 0).toLocaleString()}원</strong>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="background:white; border:1px solid #ddd; border-radius:8px; padding:20px;">
+                <h4 style="margin:0 0 15px 0; color:#333;">💸 비용 구성</h4>
+                <div style="display:grid; gap:8px;">
+                    <div style="display:flex; justify-content:space-between; padding:8px; background:#f8f9fa; border-radius:4px;">
+                        <span>일일 지출</span>
+                        <strong>${totalExpense.toLocaleString()}원</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; padding:8px; background:#f8f9fa; border-radius:4px;">
+                        <span>수수료 (30%)</span>
+                        <strong>${commissionFee.toLocaleString()}원</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; padding:8px; background:#f8f9fa; border-radius:4px;">
+                        <span>배달 수수료</span>
+                        <strong>${deliveryFee.toLocaleString()}원</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; padding:8px; background:#e3f2fd; border-radius:4px;">
+                        <span>월 고정비</span>
+                        <strong>${fixedCost.toLocaleString()}원</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div style="background:${netProfit >= 0 ? '#e8f5e9' : '#ffebee'}; padding:20px; border-radius:8px; text-align:center;">
+            <div style="font-size:16px; font-weight:bold; color:${profitColor};">
+                ${netProfit >= 0 ? '🎉 흑자 달성!' : '⚠️ 적자 상태'}
+            </div>
+            <div style="font-size:14px; color:#666; margin-top:5px;">
+                ${netProfit >= 0 
+                    ? `이번 달 순수익: ${netProfit.toLocaleString()}원` 
+                    : `손익분기까지: ${Math.abs(netProfit).toLocaleString()}원 남음`}
+            </div>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+}
+
+
 function renderAnalysis(type, btn) {
     if (!analysisData) {
         document.getElementById('analysisResult').innerHTML = '<div style="text-align:center; padding:20px; color:#999;">먼저 월을 선택하세요.</div>';

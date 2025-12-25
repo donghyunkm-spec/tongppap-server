@@ -566,5 +566,452 @@ app.put('/api/staff/wage', isAdmin, async (req, res) => {
     }
 });
 
+// ===== 직원 관리 API (개선) =====
+
+// 직원 목록 조회
+app.get('/api/staff/list', isAuth, async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT id, username, name, role, employee_type, hourly_wage, monthly_salary, 
+                    start_date, end_date, created_at 
+             FROM users 
+             ORDER BY 
+                CASE WHEN role = 'admin' THEN 1 
+                     WHEN role = 'manager' THEN 2 
+                     ELSE 3 END,
+                created_at DESC`
+        );
+        res.json({ success: true, staff: result.rows });
+    } catch (e) {
+        console.error('직원 목록 조회 실패:', e);
+        res.status(500).json({ success: false, message: '서버 오류' });
+    }
+});
+
+// 직원 일괄 등록
+app.post('/api/staff/register', isAdmin, async (req, res) => {
+    const { staff } = req.body;
+    
+    if (!staff || !Array.isArray(staff) || staff.length === 0) {
+        return res.status(400).json({ success: false, message: '직원 정보가 없습니다.' });
+    }
+    
+    const registered = [];
+    const client = await pool.connect();
+    
+    try {
+        await client.query('BEGIN');
+        
+        for (let person of staff) {
+            // 랜덤 ID 생성 (이름 + 4자리 숫자)
+            const namePrefix = person.name.replace(/\s/g, '').substring(0, 4);
+            const randomNum = Math.floor(1000 + Math.random() * 9000);
+            const username = `${namePrefix}${randomNum}`;
+            
+            // 랜덤 비밀번호 생성 (8자리 영숫자)
+            const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+            let password = '';
+            for (let i = 0; i < 8; i++) {
+                password += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            
+            // 비밀번호 해시화
+            const hashedPassword = await bcrypt.hash(password, 10);
+            
+            // DB에 사용자 생성 (알바는 시급제)
+            const userResult = await client.query(
+                `INSERT INTO users (username, password, name, role, employee_type, hourly_wage, start_date) 
+                 VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE) 
+                 RETURNING id`,
+                [username, hashedPassword, person.name, 'staff', 'hourly', 0]
+            );
+            
+            const userId = userResult.rows[0].id;
+            
+            // 스케줄 생성 (앞으로 30일간)
+            const today = new Date();
+            for (let i = 0; i < 30; i++) {
+                const checkDate = new Date(today);
+                checkDate.setDate(today.getDate() + i);
+                
+                const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                const dayName = dayNames[checkDate.getDay()];
+                
+                if (person.workDays.includes(dayName)) {
+                    const dateStr = checkDate.toISOString().split('T')[0];
+                    const [startTime, endTime] = person.workTime.split('~');
+                    
+                    await client.query(
+                        `INSERT INTO schedules (user_id, date, start_time, end_time, type) 
+                         VALUES ($1, $2, $3, $4, $5) 
+                         ON CONFLICT (user_id, date) DO NOTHING`,
+                        [userId, dateStr, startTime, endTime, 'work']
+                    );
+                }
+            }
+            
+            // 감사 로그
+            await client.query(
+                'INSERT INTO audit_logs (actor, action, target, details) VALUES ($1, $2, $3, $4)',
+                [req.session.user.name, '직원등록', person.name, `ID: ${username}, 근무: ${person.workDays.join(',')}`]
+            );
+            
+            registered.push({
+                name: person.name,
+                username: username,
+                password: password,
+                workDays: person.workDays,
+                workTime: person.workTime
+            });
+        }
+        
+        await client.query('COMMIT');
+        res.json({ success: true, registered });
+        
+    } catch (e) {
+        await client.query('ROLLBACK');
+        console.error('직원 등록 실패:', e);
+        res.status(500).json({ success: false, message: '등록 중 오류 발생: ' + e.message });
+    } finally {
+        client.release();
+    }
+});
+
+// 직원 개별 추가
+app.post('/api/staff/add', isAdmin, async (req, res) => {
+    const { name, employeeType, hourlyWage, monthlySalary, startDate, endDate } = req.body;
+    
+    if (!name) {
+        return res.status(400).json({ success: false, message: '이름을 입력하세요.' });
+    }
+    
+    try {
+        // 랜덤 ID 생성
+        const namePrefix = name.replace(/\s/g, '').substring(0, 4);
+        const randomNum = Math.floor(1000 + Math.random() * 9000);
+        const username = `${namePrefix}${randomNum}`;
+        
+        // 랜덤 비밀번호 생성
+        const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+        let password = '';
+        for (let i = 0; i < 8; i++) {
+            password += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        await pool.query(
+            `INSERT INTO users (username, password, name, role, employee_type, hourly_wage, monthly_salary, start_date, end_date) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+            [username, hashedPassword, name, 'staff', employeeType, hourlyWage || 0, monthlySalary || 0, startDate || null, endDate || null]
+        );
+        
+        await pool.query(
+            'INSERT INTO audit_logs (actor, action, target, details) VALUES ($1, $2, $3, $4)',
+            [req.session.user.name, '직원추가', name, `ID: ${username}, 타입: ${employeeType}`]
+        );
+        
+        res.json({ 
+            success: true, 
+            credentials: { name, username, password }
+        });
+        
+    } catch (e) {
+        console.error('직원 추가 실패:', e);
+        res.status(500).json({ success: false, message: '서버 오류: ' + e.message });
+    }
+});
+
+// 직원 정보 수정
+app.put('/api/staff/:id', isAdmin, async (req, res) => {
+    const { id } = req.params;
+    const { name, employeeType, hourlyWage, monthlySalary, startDate, endDate } = req.body;
+    
+    try {
+        await pool.query(
+            `UPDATE users 
+             SET name = $1, employee_type = $2, hourly_wage = $3, monthly_salary = $4, 
+                 start_date = $5, end_date = $6
+             WHERE id = $7`,
+            [name, employeeType, hourlyWage || 0, monthlySalary || 0, startDate || null, endDate || null, id]
+        );
+        
+        await pool.query(
+            'INSERT INTO audit_logs (actor, action, target, details) VALUES ($1, $2, $3, $4)',
+            [req.session.user.name, '직원수정', name, `타입: ${employeeType}, 시급: ${hourlyWage}, 월급: ${monthlySalary}`]
+        );
+        
+        res.json({ success: true });
+    } catch (e) {
+        console.error('직원 수정 실패:', e);
+        res.status(500).json({ success: false, message: '서버 오류: ' + e.message });
+    }
+});
+
+// 시급 수정 (기존 유지)
+app.put('/api/staff/wage', isAdmin, async (req, res) => {
+    const { userId, wage } = req.body;
+    
+    try {
+        await pool.query(
+            'UPDATE users SET hourly_wage = $1 WHERE id = $2',
+            [wage, userId]
+        );
+        
+        const userResult = await pool.query('SELECT name FROM users WHERE id = $1', [userId]);
+        const userName = userResult.rows[0]?.name || '알 수 없음';
+        
+        await pool.query(
+            'INSERT INTO audit_logs (actor, action, target, details) VALUES ($1, $2, $3, $4)',
+            [req.session.user.name, '시급수정', userName, `${wage}원`]
+        );
+        
+        res.json({ success: true });
+    } catch (e) {
+        console.error('시급 수정 실패:', e);
+        res.status(500).json({ success: false, message: '서버 오류' });
+    }
+});
+
+// ===== 매입/매출 API (개선) =====
+
+// 입력내역 조회
+app.get('/api/accounting/history', isManagerOrAdmin, async (req, res) => {
+    const { month } = req.query; // 형식: 2024-12
+    
+    try {
+        const query = `
+            SELECT 
+                ds1.date,
+                ds1.card as b1_card, ds1.cash as b1_cash, ds1.delivery_app as b1_delivery,
+                ds2.card as b3_card, ds2.cash as b3_cash, ds2.delivery_app as b3_delivery,
+                de.gosen as ex_gosen, de.hangang as ex_hangang, de.etc as ex_etc, de.note as ex_note
+            FROM daily_sales ds1
+            LEFT JOIN daily_sales ds2 ON ds1.date = ds2.date AND ds2.store_type = 'base3'
+            LEFT JOIN daily_expenses de ON ds1.date = de.date
+            WHERE ds1.store_type = 'base1' AND ds1.date LIKE $1
+            ORDER BY ds1.date DESC
+        `;
+        
+        const result = await pool.query(query, [month + '%']);
+        res.json({ success: true, history: result.rows });
+        
+    } catch (e) {
+        console.error('입력내역 조회 실패:', e);
+        res.status(500).json({ success: false, message: '서버 오류' });
+    }
+});
+
+// 예상순익 분석
+app.get('/api/accounting/prediction', isAdmin, async (req, res) => {
+    const { month, store } = req.query; // month: 2024-12, store: grand/base1/base3
+    
+    try {
+        const [year, monthNum] = month.split('-');
+        const today = new Date();
+        const targetMonth = new Date(year, monthNum - 1, 1);
+        const lastDay = new Date(year, monthNum, 0).getDate();
+        
+        let daysElapsed = lastDay;
+        if (today.getFullYear() === parseInt(year) && today.getMonth() === parseInt(monthNum) - 1) {
+            daysElapsed = today.getDate();
+        }
+        
+        // 매출 및 지출 조회
+        const salesQuery = `
+            SELECT 
+                SUM(CASE WHEN store_type = 'base1' THEN card + cash + delivery_app ELSE 0 END) as b1_total,
+                SUM(CASE WHEN store_type = 'base3' THEN card + cash + delivery_app ELSE 0 END) as b3_total,
+                SUM(CASE WHEN store_type = 'base1' THEN delivery_app ELSE 0 END) as b1_delivery,
+                SUM(CASE WHEN store_type = 'base3' THEN delivery_app ELSE 0 END) as b3_delivery
+            FROM daily_sales
+            WHERE date LIKE $1
+        `;
+        
+        const expenseQuery = `
+            SELECT SUM(gosen + hangang + etc) as total_expense
+            FROM daily_expenses
+            WHERE date LIKE $1
+        `;
+        
+        const fixedQuery = `
+            SELECT 
+                SUM(CASE WHEN store_type = 'base1' THEN 
+                    water + internet + electricity + cleaning + card_fee + operation + caps + etc1 + etc2 
+                    ELSE 0 END) as b1_fixed,
+                SUM(CASE WHEN store_type = 'base3' THEN 
+                    water + internet + electricity + cleaning + card_fee + operation + caps + etc1 + etc2 
+                    ELSE 0 END) as b3_fixed
+            FROM monthly_costs
+            WHERE year_month = $1
+        `;
+        
+        const salesResult = await pool.query(salesQuery, [month + '%']);
+        const expenseResult = await pool.query(expenseQuery, [month + '%']);
+        const fixedResult = await pool.query(fixedQuery, [month]);
+        
+        const sales = salesResult.rows[0];
+        const expense = expenseResult.rows[0];
+        const fixed = fixedResult.rows[0];
+        
+        let b1Total = parseFloat(sales.b1_total || 0);
+        let b3Total = parseFloat(sales.b3_total || 0);
+        let b1Delivery = parseFloat(sales.b1_delivery || 0);
+        let b3Delivery = parseFloat(sales.b3_delivery || 0);
+        let totalExpense = parseFloat(expense.total_expense || 0);
+        let b1Fixed = parseFloat(fixed.b1_fixed || 0);
+        let b3Fixed = parseFloat(fixed.b3_fixed || 0);
+        
+        // 고정비 일할 계산
+        const fixedRatio = daysElapsed / lastDay;
+        b1Fixed = Math.floor(b1Fixed * fixedRatio);
+        b3Fixed = Math.floor(b3Fixed * fixedRatio);
+        
+        let totalSales, commissionFee, deliveryFee, fixedCost, expenseCost;
+        
+        if (store === 'base1') {
+            totalSales = b1Total;
+            commissionFee = Math.floor(b1Total * 0.3);
+            deliveryFee = Math.floor(b1Delivery * 0.0495);
+            fixedCost = b1Fixed;
+            expenseCost = Math.floor(totalExpense * (b1Total / (b1Total + b3Total || 1)));
+        } else if (store === 'base3') {
+            totalSales = b3Total;
+            commissionFee = Math.floor(b3Total * 0.3);
+            deliveryFee = Math.floor(b3Delivery * 0.0495);
+            fixedCost = b3Fixed;
+            expenseCost = Math.floor(totalExpense * (b3Total / (b1Total + b3Total || 1)));
+        } else { // grand
+            totalSales = b1Total + b3Total;
+            commissionFee = Math.floor(totalSales * 0.3);
+            deliveryFee = Math.floor((b1Delivery + b3Delivery) * 0.0495);
+            fixedCost = b1Fixed + b3Fixed;
+            expenseCost = totalExpense;
+        }
+        
+        const totalCost = expenseCost + commissionFee + deliveryFee + fixedCost;
+        const netProfit = totalSales - totalCost;
+        const margin = totalSales > 0 ? (netProfit / totalSales * 100) : 0;
+        
+        res.json({
+            success: true,
+            analysis: {
+                totalSales,
+                totalExpense: expenseCost,
+                commissionFee,
+                deliveryFee,
+                fixedCost,
+                totalCost,
+                netProfit,
+                margin,
+                daysElapsed,
+                daysInMonth: lastDay
+            }
+        });
+        
+    } catch (e) {
+        console.error('예상순익 분석 실패:', e);
+        res.status(500).json({ success: false, message: '서버 오류: ' + e.message });
+    }
+});
+
+// 월간분석
+app.get('/api/accounting/dashboard', isAdmin, async (req, res) => {
+    const { month, store } = req.query;
+    
+    try {
+        const salesQuery = `
+            SELECT 
+                SUM(card) as total_card,
+                SUM(cash) as total_cash,
+                SUM(delivery_app) as total_delivery,
+                SUM(CASE WHEN store_type = 'base1' THEN card + cash + delivery_app ELSE 0 END) as b1_total,
+                SUM(CASE WHEN store_type = 'base3' THEN card + cash + delivery_app ELSE 0 END) as b3_total,
+                SUM(CASE WHEN store_type = 'base1' THEN delivery_app ELSE 0 END) as b1_delivery,
+                SUM(CASE WHEN store_type = 'base3' THEN delivery_app ELSE 0 END) as b3_delivery
+            FROM daily_sales
+            WHERE date LIKE $1 ${store !== 'grand' ? 'AND store_type = $2' : ''}
+        `;
+        
+        const expenseQuery = `
+            SELECT SUM(gosen + hangang + etc) as total_expense
+            FROM daily_expenses
+            WHERE date LIKE $1
+        `;
+        
+        const fixedQuery = `
+            SELECT 
+                SUM(water + internet + electricity + cleaning + card_fee + operation + caps + etc1 + etc2) as total_fixed
+            FROM monthly_costs
+            WHERE year_month = $1 ${store !== 'grand' ? 'AND store_type = $2' : ''}
+        `;
+        
+        const salesParams = store !== 'grand' ? [month + '%', store] : [month + '%'];
+        const fixedParams = store !== 'grand' ? [month, store] : [month];
+        
+        const salesResult = await pool.query(salesQuery, salesParams);
+        const expenseResult = await pool.query(expenseQuery, [month + '%']);
+        const fixedResult = await pool.query(fixedQuery, fixedParams);
+        
+        const sales = salesResult.rows[0];
+        const expense = expenseResult.rows[0];
+        const fixed = fixedResult.rows[0];
+        
+        let b1Total = parseFloat(sales.b1_total || 0);
+        let b3Total = parseFloat(sales.b3_total || 0);
+        let b1Delivery = parseFloat(sales.b1_delivery || 0);
+        let b3Delivery = parseFloat(sales.b3_delivery || 0);
+        let totalExpense = parseFloat(expense.total_expense || 0);
+        let fixedCost = parseFloat(fixed.total_fixed || 0);
+        
+        let totalSales, commissionFee, deliveryFee, expenseCost;
+        
+        if (store === 'base1') {
+            totalSales = b1Total;
+            commissionFee = Math.floor(b1Total * 0.3);
+            deliveryFee = Math.floor(b1Delivery * 0.0495);
+            expenseCost = Math.floor(totalExpense * (b1Total / (b1Total + b3Total || 1)));
+        } else if (store === 'base3') {
+            totalSales = b3Total;
+            commissionFee = Math.floor(b3Total * 0.3);
+            deliveryFee = Math.floor(b3Delivery * 0.0495);
+            expenseCost = Math.floor(totalExpense * (b3Total / (b1Total + b3Total || 1)));
+        } else {
+            totalSales = b1Total + b3Total;
+            commissionFee = Math.floor(totalSales * 0.3);
+            deliveryFee = Math.floor((b1Delivery + b3Delivery) * 0.0495);
+            expenseCost = totalExpense;
+        }
+        
+        const totalCost = expenseCost + commissionFee + deliveryFee + fixedCost;
+        const netProfit = totalSales - totalCost;
+        const margin = totalSales > 0 ? (netProfit / totalSales * 100) : 0;
+        
+        res.json({
+            success: true,
+            analysis: {
+                totalSales,
+                salesByType: {
+                    card: parseFloat(sales.total_card || 0),
+                    cash: parseFloat(sales.total_cash || 0),
+                    delivery: parseFloat(sales.total_delivery || 0)
+                },
+                totalExpense: expenseCost,
+                commissionFee,
+                deliveryFee,
+                fixedCost,
+                totalCost,
+                netProfit,
+                margin
+            }
+        });
+        
+    } catch (e) {
+        console.error('월간분석 실패:', e);
+        res.status(500).json({ success: false, message: '서버 오류: ' + e.message });
+    }
+});
+
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Tongppap Server running on port ${PORT}`));
