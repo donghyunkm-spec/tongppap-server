@@ -24,7 +24,11 @@ CREATE TABLE users (
     password VARCHAR(255) NOT NULL,
     name VARCHAR(50),
     role VARCHAR(20) CHECK (role IN ('admin', 'manager', 'staff')),
+    employee_type VARCHAR(20) DEFAULT 'hourly' CHECK (employee_type IN ('hourly', 'monthly')),
     hourly_wage INT DEFAULT 0,
+    monthly_salary INT DEFAULT 0,
+    start_date DATE,
+    end_date DATE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

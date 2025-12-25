@@ -88,19 +88,19 @@
             
             <!-- 직원 관리 (사장님 전용) -->
             <div id="admin-staff-manage" style="display:none;" class="status-container">
-                <h3>👥 직원/알바 관리 & 급여 설정</h3>
+                <h3>👥 직원/알바 관리</h3>
                 <div style="background:#fff3cd; padding:10px; border-radius:5px; margin-bottom:15px; font-size:13px;">
                     💡 직원을 등록하면 자동으로 ID/PW가 생성됩니다. 생성된 정보는 직원에게 전달하세요.
                 </div>
                 
                 <!-- 일괄 등록 섹션 -->
                 <div style="margin-bottom: 30px; background:#e8f5e9; padding:15px; border-radius:8px;">
-                    <h3>📝 직원 일괄 등록</h3>
+                    <h3>📝 일괄 등록 (빠른 등록)</h3>
                     <div style="background:white; padding:10px; border-radius:5px; margin:10px 0; font-size:12px;">
                         <strong>💡 입력 예시:</strong> 홍길동, 월화수, 18~23<br>
-                        <span style="color:#666;">* 한 줄에 한 명씩 입력하세요 (이름, 근무요일, 근무시간)</span>
+                        <span style="color:#666;">* 한 줄에 한 명씩 입력 (이름, 근무요일, 근무시간) - 시급제 알바로 등록됩니다</span>
                     </div>
-                    <textarea id="bulkText" placeholder="홍길동, 월화수, 18~23" 
+                    <textarea id="bulkText" placeholder="홍길동, 월화수, 18~23&#10;김영희, 목금토, 17~22" 
                             style="width:100%; height:100px; padding:10px; border:1px solid #ddd; border-radius:5px; font-size:14px;"></textarea>
                     <button class="btn" onclick="processBulkText()" style="width:100%; margin-top:10px; background:#2e7d32;">
                         ✨ 한 번에 등록하기
@@ -110,10 +110,14 @@
                 <hr style="margin:20px 0; border:none; border-top:2px solid #eee;">
 
                 <!-- 직원 목록 -->
-                <h3>📋 등록된 직원 목록</h3>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h3 style="margin:0;">📋 등록된 직원/알바 목록</h3>
+                    <button onclick="openAddStaffModal()" class="btn" style="background:#1976d2; padding:8px 15px; font-size:13px;">
+                        ➕ 직접 추가
+                    </button>
+                </div>
                 <div id="staffListArea"></div>
             </div>
-        </div>
 
         <!-- ========== 매입/매출 탭 ========== -->
         <div id="accounting-content" class="tab-content">
@@ -131,7 +135,12 @@
             <div id="daily-input" class="acc-sub-content active">
                 <div class="status-container">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:15px;">
-                        <input type="date" id="accDate" onchange="loadDailyData()" style="padding:10px; font-size:16px; border:2px solid #2e7d32; border-radius:5px;">
+                        <div style="display:flex; gap:10px; align-items:center;">
+                            <button onclick="changeDailyDate(-1)" class="number-btn">&lt;</button>
+                            <input type="date" id="accDate" onchange="loadDailyData()" style="padding:10px; font-size:16px; border:2px solid #2e7d32; border-radius:5px;">
+                            <button onclick="changeDailyDate(1)" class="number-btn">&gt;</button>
+                            <button onclick="goToToday()" style="background:white; border:1px solid #2e7d32; color:#2e7d32; padding:8px 15px; border-radius:5px; cursor:pointer; font-size:13px;">📅 오늘</button>
+                        </div>
                         <button onclick="saveDailyData()" class="pulse-btn" style="background:#2e7d32; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold;">💾 일일 저장</button>
                     </div>
 
@@ -169,7 +178,15 @@
             <!-- 입력내역 -->
             <div id="history" class="acc-sub-content">
                 <div class="status-container">
-                    <h3>📋 이번 달 입력 내역</h3>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                        <h3 style="margin:0;">📋 이번 달 입력 내역</h3>
+                        <div style="display:flex; gap:10px;">
+                            <button onclick="changeHistoryMonth(-1)" class="number-btn">&lt;</button>
+                            <span id="historyMonthDisplay" style="font-size:16px; font-weight:bold; min-width:100px; text-align:center;">2024년 12월</span>
+                            <button onclick="changeHistoryMonth(1)" class="number-btn">&gt;</button>
+                            <button onclick="goToCurrentMonth()" style="background:white; border:1px solid #2e7d32; color:#2e7d32; padding:8px 15px; border-radius:5px; cursor:pointer; font-size:13px;">📅 이번달</button>
+                        </div>
+                    </div>
                     <div id="historyList"></div>
                 </div>
             </div>
@@ -177,7 +194,15 @@
             <!-- 예상순익 (사장님 전용) -->
             <div id="prediction" class="acc-sub-content">
                 <div class="status-container">
-                    <h3>🔮 예상 손익 분석</h3>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                        <h3 style="margin:0;">🔮 예상 손익 분석</h3>
+                        <div style="display:flex; gap:10px; align-items:center;">
+                            <button onclick="changePredMonth(-1)" class="number-btn">&lt;</button>
+                            <span id="predMonthDisplay" style="font-size:16px; font-weight:bold; min-width:100px; text-align:center;">2024년 12월</span>
+                            <button onclick="changePredMonth(1)" class="number-btn">&gt;</button>
+                            <button onclick="goToPredCurrentMonth()" style="background:white; border:1px solid #2e7d32; color:#2e7d32; padding:8px 15px; border-radius:5px; cursor:pointer; font-size:13px;">📅 이번달</button>
+                        </div>
+                    </div>
                     <div style="text-align:center; margin:20px 0;">
                         <select id="predStoreSelect" onchange="renderPrediction()" style="padding:10px; font-size:16px; border:2px solid #2e7d32; border-radius:5px;">
                             <option value="grand">통합 분석</option>
@@ -192,7 +217,15 @@
             <!-- 월간분석 (사장님 전용) -->
             <div id="dashboard" class="acc-sub-content">
                 <div class="status-container">
-                    <h3>📊 월간 손익 분석</h3>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                        <h3 style="margin:0;">📊 월간 손익 분석</h3>
+                        <div style="display:flex; gap:10px; align-items:center;">
+                            <button onclick="changeDashMonth(-1)" class="number-btn">&lt;</button>
+                            <span id="dashMonthDisplay" style="font-size:16px; font-weight:bold; min-width:100px; text-align:center;">2024년 12월</span>
+                            <button onclick="changeDashMonth(1)" class="number-btn">&gt;</button>
+                            <button onclick="goToDashCurrentMonth()" style="background:white; border:1px solid #2e7d32; color:#2e7d32; padding:8px 15px; border-radius:5px; cursor:pointer; font-size:13px;">📅 이번달</button>
+                        </div>
+                    </div>
                     <div style="text-align:center; margin:20px 0;">
                         <select id="dashStoreSelect" onchange="renderDashboard()" style="padding:10px; font-size:16px; border:2px solid #2e7d32; border-radius:5px;">
                             <option value="grand">통합 분석</option>
@@ -259,6 +292,71 @@
             <div class="modal-actions">
                 <button class="btn" onclick="saveWage()">저장</button>
                 <button class="btn" onclick="closeEditWageModal()" style="background:#666;">취소</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 직원 추가/수정 모달 -->
+    <div id="staffModal" class="modal-overlay">
+        <div class="modal-box" style="max-width:600px;">
+            <h3 id="staffModalTitle">➕ 직원 추가</h3>
+            <input type="hidden" id="editStaffId">
+            
+            <div class="modal-field">
+                <label>이름 *</label>
+                <input type="text" id="staffName" placeholder="홍길동">
+            </div>
+            
+            <div class="modal-field">
+                <label>직원 구분 *</label>
+                <select id="staffType" onchange="toggleSalaryFields()">
+                    <option value="hourly">알바 (시급제)</option>
+                    <option value="monthly">직원 (월급제)</option>
+                </select>
+            </div>
+            
+            <div id="hourlyFields">
+                <div class="modal-field">
+                    <label>시급 (원)</label>
+                    <input type="number" id="staffHourlyWage" placeholder="10000">
+                </div>
+            </div>
+            
+            <div id="monthlyFields" style="display:none;">
+                <div class="modal-field">
+                    <label>월급 (원)</label>
+                    <input type="number" id="staffMonthlySalary" placeholder="2500000">
+                </div>
+            </div>
+            
+            <div class="modal-field">
+                <label>입사일</label>
+                <input type="date" id="staffStartDate">
+            </div>
+            
+            <div class="modal-field">
+                <label>퇴사일 (재직중이면 비워두세요)</label>
+                <input type="date" id="staffEndDate">
+            </div>
+            
+            <div class="modal-actions">
+                <button class="btn" onclick="saveStaff()">💾 저장</button>
+                <button class="btn" onclick="closeStaffModal()" style="background:#666;">취소</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 직원 등록 결과 모달 -->
+    <div id="staffRegisterModal" class="modal-overlay">
+        <div class="modal-box" style="max-width:600px;">
+            <h3>✅ 직원 등록 완료!</h3>
+            <p style="color:#666; font-size:13px; margin-bottom:20px;">
+                아래 정보를 직원에게 전달하세요. (화면 캡처 또는 복사)
+            </p>
+            <div id="registeredStaffList" style="background:#f8f9fa; padding:15px; border-radius:5px; max-height:400px; overflow-y:auto;">
+            </div>
+            <div class="modal-actions" style="margin-top:20px;">
+                <button class="btn" onclick="closeRegisterModal()" style="background:#2e7d32;">확인</button>
             </div>
         </div>
     </div>
