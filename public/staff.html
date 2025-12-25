@@ -8,24 +8,29 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
+    <!-- 로그인 모달 -->
     <div id="loginOverlay" class="modal-overlay" style="display:flex;">
         <div class="modal-box">
-            <h2 style="text-align:center; color:#2e7d32;">🔐 통빱 관리자 로그인</h2>
-            <p style="text-align:center; font-size:12px; color:#666; margin-bottom:20px;">사장님께 부여받은 ID/PW를 입력하세요.</p>
+            <h2 style="text-align:center; color:#2e7d32;">🔐 통빵 관리자 로그인</h2>
+            <p style="text-align:center; font-size:12px; color:#666; margin-bottom:20px;">
+                사장님께 부여받은 ID/PW를 입력하세요.
+            </p>
             <div class="modal-field">
                 <input type="text" id="loginId" placeholder="아이디" onkeypress="if(event.key==='Enter') document.getElementById('loginPw').focus()">
             </div>
             <div class="modal-field">
                 <input type="password" id="loginPw" placeholder="비밀번호" onkeypress="if(event.key==='Enter') doLogin()">
             </div>
+            <div id="loginError" style="color:red; font-size:12px; text-align:center; margin-bottom:10px; display:none;"></div>
             <button class="btn" onclick="doLogin()">로그인</button>
         </div>
     </div>
 
+    <!-- 메인 컨테이너 -->
     <div class="container" id="mainContent" style="display:none;">
         <div class="header">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h1 id="pageTitle"><i class="fas fa-rice-ball"></i> 통빱 관리시스템</h1>
+                <h1 id="pageTitle"><i class="fas fa-utensils"></i> 통빵 관리시스템</h1>
                 <div style="text-align:right;">
                     <div id="userInfo" style="font-size:14px; color:white; font-weight:bold; margin-bottom:5px;"></div>
                     <button onclick="doLogout()" style="font-size:11px; padding:5px 10px; border-radius:15px; border:none; background:rgba(255,255,255,0.3); color:white; cursor:pointer;">로그아웃</button>
@@ -33,116 +38,208 @@
             </div>
         </div>
 
+        <!-- 탭 메뉴 -->
         <div class="tabs">
             <button class="tab active" onclick="switchTab('schedule')">🕒 근무/직원관리</button>
             <button class="tab manager-only" onclick="switchTab('accounting')">💰 매입/매출</button>
-            <button class="tab admin-only" onclick="switchTab('analysis')">📊 통합 손익분석</button>
+            <button class="tab admin-only" onclick="switchTab('analysis')">📊 손익분석</button>
         </div>
 
+        <!-- ========== 근무/직원관리 탭 ========== -->
         <div id="schedule-content" class="tab-content active">
+            <!-- 알바용 뷰 -->
             <div id="staff-view-only" style="display:none;">
                 <div class="status-container">
                     <h3>👋 나의 근무 일정</h3>
                     <div id="myScheduleList" class="list-group"></div>
+                    
+                    <div style="margin-top:30px; border-top:2px solid #eee; padding-top:20px;">
+                        <h3>⏰ 오늘 출퇴근 기록</h3>
+                        <div id="todayClockStatus" style="background:#f8f9fa; padding:15px; border-radius:8px; margin:10px 0;">
+                            <div style="font-size:13px; color:#666;">출근: <span id="clockInTime">-</span></div>
+                            <div style="font-size:13px; color:#666;">퇴근: <span id="clockOutTime">-</span></div>
+                        </div>
+                        <button onclick="clockIn()" class="btn" style="background:#28a745; margin-bottom:10px;">출근하기</button>
+                        <button onclick="clockOut()" class="btn" style="background:#dc3545;">퇴근하기</button>
+                    </div>
                 </div>
             </div>
 
+            <!-- 관리자용 뷰 -->
             <div id="manager-schedule-view" style="display:none;">
                 <div class="accounting-card" style="padding:10px; margin-bottom:15px;">
                     <div class="tabs" style="grid-template-columns: repeat(4, 1fr); margin-bottom:0;">
-                        <button class="tab active" onclick="renderCalendar('daily')">일별</button>
-                        <button class="tab" onclick="renderCalendar('weekly')">주간</button>
-                        <button class="tab" onclick="renderCalendar('monthly')">월별</button>
-                        <button class="tab admin-only" onclick="showStaffManage()">👥 직원관리</button>
+                        <button class="tab active" onclick="switchSubTab('daily')">일별</button>
+                        <button class="tab" onclick="switchSubTab('weekly')">주간</button>
+                        <button class="tab" onclick="switchSubTab('monthly')">월별</button>
+                        <button class="tab admin-only" onclick="switchSubTab('staff-manage')">👥 직원관리</button>
                     </div>
                 </div>
 
                 <div class="status-container">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                        <button onclick="moveCalendar(-1)" class="number-btn"><</button>
+                        <button onclick="moveCalendar(-1)" class="number-btn">&lt;</button>
                         <h2 id="calendarTitle" style="margin:0;">2024년 12월</h2>
-                        <button onclick="moveCalendar(1)" class="number-btn">></button>
+                        <button onclick="moveCalendar(1)" class="number-btn">&gt;</button>
                     </div>
-                    <div id="calendarArea">
-                        </div>
+                    <div id="calendarArea"></div>
                 </div>
             </div>
             
+            <!-- 직원 관리 (사장님 전용) -->
             <div id="admin-staff-manage" style="display:none;" class="status-container">
-                <h3>👥 직원/알바 관리 & 급여 예측</h3>
+                <h3>👥 직원/알바 관리 & 급여 설정</h3>
                 <div style="background:#fff3cd; padding:10px; border-radius:5px; margin-bottom:15px; font-size:13px;">
-                    💡 알바생 등록은 직원이 직접 하고, 사장님은 여기서 시급/월급 정보만 수정하세요.
+                    💡 직원들의 시급을 설정하세요. 나중에 급여 예측 기능에 반영됩니다.
                 </div>
                 <div id="staffListArea"></div>
             </div>
         </div>
 
+        <!-- ========== 매입/매출 탭 ========== -->
         <div id="accounting-content" class="tab-content">
-            <div class="status-container">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:15px;">
-                    <input type="date" id="accDate" onchange="loadDailyData()" style="padding:10px; font-size:16px; border:2px solid #2e7d32; border-radius:5px;">
-                    <button onclick="saveDailyData()" class="pulse-btn" style="background:#2e7d32; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold;">💾 일일 저장</button>
+            <div class="accounting-card" style="padding:10px; margin-bottom:15px;">
+                <div class="tabs" style="grid-template-columns: repeat(5, 1fr); margin-bottom:0;">
+                    <button class="tab active" onclick="switchAccSubTab('daily-input')">일일입력</button>
+                    <button class="tab" onclick="switchAccSubTab('history')">입력내역</button>
+                    <button class="tab admin-only" onclick="switchAccSubTab('prediction')">예상순익</button>
+                    <button class="tab admin-only" onclick="switchAccSubTab('dashboard')">월간분석</button>
+                    <button class="tab admin-only" onclick="switchAccSubTab('fixed-cost')">고정비</button>
                 </div>
+            </div>
 
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:20px;">
-                    <div class="accounting-card" style="border-top:4px solid #1976D2;">
-                        <h4 style="color:#1976D2; margin-bottom:10px;">⚾ 통빱 1루 매출</h4>
-                        <div class="input-group-row"><span>💳 카드</span><input type="number" id="b1_card" class="money-input" placeholder="0"></div>
-                        <div class="input-group-row"><span>💵 현금</span><input type="number" id="b1_cash" class="money-input" placeholder="0"></div>
-                        <div class="input-group-row"><span>🛵 배달타자</span><input type="number" id="b1_deliv" class="money-input" placeholder="0"></div>
+            <!-- 일일입력 -->
+            <div id="daily-input" class="acc-sub-content active">
+                <div class="status-container">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:15px;">
+                        <input type="date" id="accDate" onchange="loadDailyData()" style="padding:10px; font-size:16px; border:2px solid #2e7d32; border-radius:5px;">
+                        <button onclick="saveDailyData()" class="pulse-btn" style="background:#2e7d32; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold;">💾 일일 저장</button>
                     </div>
-                    <div class="accounting-card" style="border-top:4px solid #E64A19;">
-                        <h4 style="color:#E64A19; margin-bottom:10px;">⚾ 통빱 3루 매출</h4>
-                        <div class="input-group-row"><span>💳 카드</span><input type="number" id="b3_card" class="money-input" placeholder="0"></div>
-                        <div class="input-group-row"><span>💵 현금</span><input type="number" id="b3_cash" class="money-input" placeholder="0"></div>
-                        <div class="input-group-row"><span>🛵 배달타자</span><input type="number" id="b3_deliv" class="money-input" placeholder="0"></div>
-                    </div>
-                </div>
 
-                <div class="accounting-card" style="border-top:4px solid #FBC02D;">
-                    <h4 style="color:#F57F17; margin-bottom:10px;">💸 공통 일일 지출 (매출 비율 자동 배분)</h4>
-                    <div class="input-grid">
-                        <div><span class="category-label">🚚 고센유통</span><input type="number" id="ex_gosen" class="money-input" placeholder="0"></div>
-                        <div><span class="category-label">🥩 한강유통</span><input type="number" id="ex_hangang" class="money-input" placeholder="0"></div>
-                        <div><span class="category-label">🎸 기타잡비</span><input type="number" id="ex_etc" class="money-input" placeholder="0"></div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:20px;">
+                        <div class="accounting-card" style="border-top:4px solid #1976D2;">
+                            <h4 style="color:#1976D2; margin-bottom:10px;">⚾ 통빵 1루 매출</h4>
+                            <div class="input-group-row"><span>💳 카드</span><input type="number" id="b1_card" class="money-input" placeholder="0"></div>
+                            <div class="input-group-row"><span>💵 현금</span><input type="number" id="b1_cash" class="money-input" placeholder="0"></div>
+                            <div class="input-group-row"><span>🛵 배달타자</span><input type="number" id="b1_deliv" class="money-input" placeholder="0"></div>
+                        </div>
+                        <div class="accounting-card" style="border-top:4px solid #E64A19;">
+                            <h4 style="color:#E64A19; margin-bottom:10px;">⚾ 통빵 3루 매출</h4>
+                            <div class="input-group-row"><span>💳 카드</span><input type="number" id="b3_card" class="money-input" placeholder="0"></div>
+                            <div class="input-group-row"><span>💵 현금</span><input type="number" id="b3_cash" class="money-input" placeholder="0"></div>
+                            <div class="input-group-row"><span>🛵 배달타자</span><input type="number" id="b3_deliv" class="money-input" placeholder="0"></div>
+                        </div>
                     </div>
-                    <div style="margin-top:10px;">
-                        <span class="category-label">📝 특이사항</span>
-                        <input type="text" id="ex_note" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;" placeholder="예: 단체 예약 취소 등">
+
+                    <div class="accounting-card" style="border-top:4px solid #FBC02D;">
+                        <h4 style="color:#F57F17; margin-bottom:10px;">💸 공통 일일 지출 (자동배분)</h4>
+                        <p style="font-size:12px; color:#666; margin-bottom:10px;">* 매출 비율로 1루/3루에 자동 배분됩니다</p>
+                        <div class="input-grid">
+                            <div><span class="category-label">🚚 고센유통</span><input type="number" id="ex_gosen" class="money-input" placeholder="0"></div>
+                            <div><span class="category-label">🥩 한강유통</span><input type="number" id="ex_hangang" class="money-input" placeholder="0"></div>
+                            <div><span class="category-label">🎸 기타잡비</span><input type="number" id="ex_etc" class="money-input" placeholder="0"></div>
+                        </div>
+                        <div style="margin-top:10px;">
+                            <span class="category-label">📝 특이사항</span>
+                            <input type="text" id="ex_note" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;" placeholder="예: 단체 예약 취소 등">
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="status-container admin-only" style="margin-top:20px; border:2px solid #d32f2f;">
-                <h3 style="color:#d32f2f;">🏗️ 월 고정비 설정 (<span id="fixMonthDisplay"></span>)</h3>
-                <p style="font-size:12px; color:#666;">* 수수료(30%)와 배달타자 수수료(4.95%)는 분석 시 매출에 따라 <strong>자동 계산</strong>되므로 입력하지 않습니다.</p>
-                
-                <div class="tabs" style="grid-template-columns: 1fr 1fr; margin-bottom:10px; margin-top:10px;">
-                    <button class="tab active" onclick="showFixTab('base1', this)">1루 고정비</button>
-                    <button class="tab" onclick="showFixTab('base3', this)">3루 고정비</button>
+            <!-- 입력내역 -->
+            <div id="history" class="acc-sub-content">
+                <div class="status-container">
+                    <h3>📋 이번 달 입력 내역</h3>
+                    <div id="historyList"></div>
                 </div>
+            </div>
 
-                <div id="fixFormArea">
+            <!-- 예상순익 (사장님 전용) -->
+            <div id="prediction" class="acc-sub-content">
+                <div class="status-container">
+                    <h3>🔮 예상 손익 분석</h3>
+                    <div style="text-align:center; margin:20px 0;">
+                        <select id="predStoreSelect" onchange="renderPrediction()" style="padding:10px; font-size:16px; border:2px solid #2e7d32; border-radius:5px;">
+                            <option value="grand">통합 분석</option>
+                            <option value="base1">1루만 보기</option>
+                            <option value="base3">3루만 보기</option>
+                        </select>
                     </div>
-                <button onclick="saveFixedCost()" style="width:100%; margin-top:15px; background:#d32f2f; color:white; padding:12px; border:none; font-weight:bold; border-radius:5px;">월 고정비 저장</button>
+                    <div id="predictionResult"></div>
+                </div>
+            </div>
+
+            <!-- 월간분석 (사장님 전용) -->
+            <div id="dashboard" class="acc-sub-content">
+                <div class="status-container">
+                    <h3>📊 월간 손익 분석</h3>
+                    <div style="text-align:center; margin:20px 0;">
+                        <select id="dashStoreSelect" onchange="renderDashboard()" style="padding:10px; font-size:16px; border:2px solid #2e7d32; border-radius:5px;">
+                            <option value="grand">통합 분석</option>
+                            <option value="base1">1루만 보기</option>
+                            <option value="base3">3루만 보기</option>
+                        </select>
+                    </div>
+                    <div id="dashboardResult"></div>
+                </div>
+            </div>
+
+            <!-- 고정비 설정 (사장님 전용) -->
+            <div id="fixed-cost" class="acc-sub-content">
+                <div class="status-container">
+                    <h3>🏗️ 월 고정비 설정 (<span id="fixMonthDisplay"></span>)</h3>
+                    <p style="font-size:12px; color:#666; margin-bottom:15px;">
+                        * 수수료(30%)와 배달타자 수수료(4.95%)는 분석 시 매출에 따라 <strong>자동 계산</strong>되므로 입력하지 않습니다.
+                    </p>
+                    
+                    <div class="tabs" style="grid-template-columns: 1fr 1fr; margin-bottom:15px;">
+                        <button class="tab active" onclick="showFixTab('base1', this)">1루 고정비</button>
+                        <button class="tab" onclick="showFixTab('base3', this)">3루 고정비</button>
+                    </div>
+
+                    <div id="fixFormArea"></div>
+                    <button onclick="saveFixedCost()" style="width:100%; margin-top:15px; background:#d32f2f; color:white; padding:12px; border:none; font-weight:bold; border-radius:5px;">💾 월 고정비 저장</button>
+                </div>
             </div>
         </div>
 
+        <!-- ========== 손익분석 탭 (사장님 전용) ========== -->
         <div id="analysis-content" class="tab-content">
             <div class="status-container">
                 <div style="text-align:center; margin-bottom:20px;">
-                    <input type="month" id="anMonth" onchange="loadAnalysis()" style="font-size:18px; padding:5px;">
+                    <input type="month" id="anMonth" onchange="loadAnalysis()" style="font-size:18px; padding:10px; border:2px solid #2e7d32; border-radius:5px;">
                 </div>
                 
                 <div class="tabs" style="grid-template-columns: 1fr 1fr 1fr;">
-                    <button class="tab active" onclick="renderAnalysis('base1', this)">1루 분석</button>
+                    <button class="tab" onclick="renderAnalysis('base1', this)">1루 분석</button>
                     <button class="tab" onclick="renderAnalysis('base3', this)">3루 분석</button>
-                    <button class="tab" onclick="renderAnalysis('grand', this)" style="background:#e8f5e9; color:#2e7d32; font-weight:bold;">통합 분석</button>
+                    <button class="tab active" onclick="renderAnalysis('grand', this)" style="background:#e8f5e9; color:#2e7d32; font-weight:bold;">통합 분석</button>
                 </div>
 
                 <div id="analysisResult" class="accounting-card">
                     <p style="text-align:center; color:#999; padding:20px;">조회할 월을 선택하세요.</p>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 직원 급여 수정 모달 -->
+    <div id="editWageModal" class="modal-overlay">
+        <div class="modal-box">
+            <h3>💰 시급 설정</h3>
+            <input type="hidden" id="editUserId">
+            <div class="modal-field">
+                <label>직원명</label>
+                <input type="text" id="editUserName" disabled style="background:#eee;">
+            </div>
+            <div class="modal-field">
+                <label>시급 (원)</label>
+                <input type="number" id="editWage" placeholder="예: 10000">
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="saveWage()">저장</button>
+                <button class="btn" onclick="closeEditWageModal()" style="background:#666;">취소</button>
             </div>
         </div>
     </div>
