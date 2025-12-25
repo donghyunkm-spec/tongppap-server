@@ -227,11 +227,30 @@ app.get('/api/analysis', isAdminOrManager, async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
-// 임시 코드: 서버 켜질 때 admin 계정 생성 (비밀번호: 1234)
+// [임시 코드] 서버 시작 시 관리자 & 매니저 계정 자동 생성
 (async () => {
-    const hash = await bcrypt.hash("1234", 10);
+    // 1. 사장님 (admin) 계정 생성
+    const adminHash = await bcrypt.hash("25@fndksvnem", 10);
     try {
-        await pool.query("INSERT INTO users (username, password, name, role) VALUES ('admin', $1, '사장님', 'admin')", [hash]);
-        console.log("Admin account created!");
-    } catch(e) {}
+        await pool.query(
+            "INSERT INTO users (username, password, name, role) VALUES ('admin', $1, '사장님', 'admin')", 
+            [adminHash]
+        );
+        console.log("✅ 사장님(admin) 계정 생성 완료!");
+    } catch(e) {
+        console.log("ℹ️ 사장님 계정이 이미 존재합니다.");
+    }
+
+    // 2. 매니저 (manager) 계정 생성
+    // ID: manager / PW: tongbob1234!
+    const managerHash = await bcrypt.hash("tongbob1234!", 10);
+    try {
+        await pool.query(
+            "INSERT INTO users (username, password, name, role) VALUES ('manager', $1, '매니저', 'manager')", 
+            [managerHash]
+        );
+        console.log("✅ 매니저(manager) 계정 생성 완료!");
+    } catch(e) {
+        console.log("ℹ️ 매니저 계정이 이미 존재합니다.");
+    }
 })();
