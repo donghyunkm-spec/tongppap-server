@@ -135,15 +135,25 @@ function switchTab(tabName) {
         loadDailyData();
     }
     if (tabName === 'analysis' && currentUser?.role === 'admin') {
-        loadAnalysis();
+        const month = document.getElementById('anMonth').value;
+        if (month) loadAnalysis();
     }
 }
 
 function switchSubTab(subTab) {
     currentSubTab = subTab;
-    document.getElementById('admin-staff-manage').style.display = 'none';
-    document.getElementById('calendarArea').parentElement.style.display = 'block';
-    renderCalendar();
+    
+    // 직원관리 탭인 경우
+    if (subTab === 'staff-manage') {
+        document.getElementById('calendarArea').parentElement.style.display = 'none';
+        document.getElementById('admin-staff-manage').style.display = 'block';
+        loadStaffList();
+    } else {
+        // 일별/주간/월별 탭인 경우
+        document.getElementById('admin-staff-manage').style.display = 'none';
+        document.getElementById('calendarArea').parentElement.style.display = 'block';
+        renderCalendar();
+    }
 }
 
 function switchAccSubTab(subId) {
@@ -171,7 +181,11 @@ function switchAccSubTab(subId) {
     else if (subId === 'history') loadHistory();
     else if (subId === 'prediction') renderPrediction();
     else if (subId === 'dashboard') renderDashboard();
-    else if (subId === 'fixed-cost') loadFixedCost();
+    else if (subId === 'fixed-cost') {
+        const month = document.getElementById('anMonth')?.value || new Date().toISOString().slice(0, 7);
+        document.getElementById('fixMonthDisplay').innerText = month;
+        loadFixedCost();
+    }
 }
 
 // ===== 근무 일정 (알바용) =====
@@ -317,6 +331,10 @@ async function deleteSchedule(id) {
 async function loadStaffList() {
     try {
         const res = await fetch('/api/users');
+        if (!res.ok) {
+            throw new Error('권한이 없습니다.');
+        }
+        
         const json = await res.json();
         const area = document.getElementById('staffListArea');
         area.innerHTML = '';
@@ -338,6 +356,7 @@ async function loadStaffList() {
         });
     } catch (e) {
         console.error(e);
+        alert('직원 목록을 불러올 수 없습니다: ' + e.message);
     }
 }
 
@@ -440,6 +459,9 @@ async function saveDailyData() {
         
         if (res.ok) {
             alert('저장되었습니다.');
+        } else {
+            const err = await res.json();
+            alert('저장 실패: ' + (err.message || '권한이 없습니다'));
         }
     } catch (e) {
         alert('저장 실패');
@@ -461,16 +483,20 @@ async function loadHistory() {
 let loadedFixData = { base1: {}, base3: {} };
 
 async function loadFixedCost() {
-    const month = document.getElementById('anMonth').value;
-    document.getElementById('fixMonthDisplay').innerText = month;
+    const month = document.getElementById('fixMonthDisplay').innerText;
     
     try {
         const res = await fetch(`/api/accounting/monthly?month=${month}`);
+        if (!res.ok) {
+            throw new Error('권한이 없거나 데이터를 불러올 수 없습니다.');
+        }
+        
         const data = await res.json();
         loadedFixData = data;
-        renderFixForm('base1');
+        renderFixForm(currentFixStore);
     } catch (e) {
         console.error(e);
+        alert('고정비 데이터 로드 실패: ' + e.message);
     }
 }
 
@@ -533,8 +559,12 @@ async function saveFixedCost() {
         
         if (res.ok) {
             alert('저장되었습니다.');
+        } else {
+            const err = await res.json();
+            alert('저장 실패: ' + (err.message || '권한이 없습니다'));
         }
     } catch (e) {
+        console.error(e);
         alert('저장 실패');
     }
 }
@@ -546,11 +576,15 @@ async function loadAnalysis() {
     
     try {
         const res = await fetch(`/api/analysis?month=${month}`);
+        if (!res.ok) {
+            throw new Error('분석 데이터를 불러올 수 없습니다.');
+        }
+        
         analysisData = await res.json();
         renderAnalysis('grand');
     } catch (e) {
         console.error(e);
-        alert('분석 데이터 로드 실패');
+        alert('분석 데이터 로드 실패: ' + e.message);
     }
 }
 
@@ -708,13 +742,6 @@ function renderDashboard() {
     resultEl.parentNode.replaceChild(clone, resultEl);
 }
 
-// ===== 직원 관리 탭 전환 =====
-function showStaffManage() {
-    document.getElementById('calendarArea').parentElement.style.display = 'none';
-    document.getElementById('admin-staff-manage').style.display = 'block';
-    loadStaffList();
-}
-
 // ===== 유틸리티 함수 =====
 function formatNumber(num) {
     return num ? parseInt(num).toLocaleString() : '0';
@@ -773,6 +800,40 @@ style.textContent = `
     }
     .list-group {
         margin-top: 10px;
+    }
+    .dashboard-summary {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 15px;
+    }
+    .summary-card {
+        background: white;
+        padding: 15px 10px;
+        border-radius: 10px;
+        text-align: center;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        border: 1px solid #eee;
+    }
+    .summary-card .lbl {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 5px;
+    }
+    .summary-card .val {
+        font-size: 20px;
+        font-weight: bold;
+    }
+    .summary-card.net-profit {
+        background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+        color: white;
+        border: none;
+    }
+    .summary-card.net-profit .lbl {
+        color: rgba(255,255,255,0.8);
+    }
+    .summary-card.net-profit .val {
+        color: #fff;
     }
 `;
 document.head.appendChild(style);
