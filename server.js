@@ -226,3 +226,12 @@ app.get('/api/analysis', isAdminOrManager, async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+// 임시 코드: 서버 켜질 때 admin 계정 생성 (비밀번호: 1234)
+(async () => {
+    const hash = await bcrypt.hash("1234", 10);
+    try {
+        await pool.query("INSERT INTO users (username, password, name, role) VALUES ('admin', $1, '사장님', 'admin')", [hash]);
+        console.log("Admin account created!");
+    } catch(e) {}
+})();
