@@ -90,8 +90,27 @@
             <div id="admin-staff-manage" style="display:none;" class="status-container">
                 <h3>👥 직원/알바 관리 & 급여 설정</h3>
                 <div style="background:#fff3cd; padding:10px; border-radius:5px; margin-bottom:15px; font-size:13px;">
-                    💡 직원들의 시급을 설정하세요. 나중에 급여 예측 기능에 반영됩니다.
+                    💡 직원을 등록하면 자동으로 ID/PW가 생성됩니다. 생성된 정보는 직원에게 전달하세요.
                 </div>
+                
+                <!-- 일괄 등록 섹션 -->
+                <div style="margin-bottom: 30px; background:#e8f5e9; padding:15px; border-radius:8px;">
+                    <h3>📝 직원 일괄 등록</h3>
+                    <div style="background:white; padding:10px; border-radius:5px; margin:10px 0; font-size:12px;">
+                        <strong>💡 입력 예시:</strong> 홍길동, 월화수, 18~23<br>
+                        <span style="color:#666;">* 한 줄에 한 명씩 입력하세요 (이름, 근무요일, 근무시간)</span>
+                    </div>
+                    <textarea id="bulkText" placeholder="홍길동, 월화수, 18~23" 
+                            style="width:100%; height:100px; padding:10px; border:1px solid #ddd; border-radius:5px; font-size:14px;"></textarea>
+                    <button class="btn" onclick="processBulkText()" style="width:100%; margin-top:10px; background:#2e7d32;">
+                        ✨ 한 번에 등록하기
+                    </button>
+                </div>
+
+                <hr style="margin:20px 0; border:none; border-top:2px solid #eee;">
+
+                <!-- 직원 목록 -->
+                <h3>📋 등록된 직원 목록</h3>
                 <div id="staffListArea"></div>
             </div>
         </div>
@@ -240,6 +259,21 @@
             <div class="modal-actions">
                 <button class="btn" onclick="saveWage()">저장</button>
                 <button class="btn" onclick="closeEditWageModal()" style="background:#666;">취소</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 직원 등록 결과 모달 -->
+    <div id="staffRegisterModal" class="modal-overlay">
+        <div class="modal-box" style="max-width:600px;">
+            <h3>✅ 직원 등록 완료!</h3>
+            <p style="color:#666; font-size:13px; margin-bottom:20px;">
+                아래 정보를 직원에게 전달하세요. (화면 캡처 또는 복사)
+            </p>
+            <div id="registeredStaffList" style="background:#f8f9fa; padding:15px; border-radius:5px; max-height:400px; overflow-y:auto;">
+            </div>
+            <div class="modal-actions" style="margin-top:20px;">
+                <button class="btn" onclick="closeRegisterModal()" style="background:#2e7d32;">확인</button>
             </div>
         </div>
     </div>

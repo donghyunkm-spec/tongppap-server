@@ -6,6 +6,8 @@ let currentSubTab = 'daily';
 let currentFixStore = 'base1';
 let analysisData = null;
 let dailyHistoryData = [];
+let staffListData = []; // 직원 목록 데이터
+
 
 // ===== 초기화 =====
 document.addEventListener('DOMContentLoaded', () => {
@@ -140,19 +142,23 @@ function switchTab(tabName) {
     }
 }
 
-function switchSubTab(subTab) {
-    currentSubTab = subTab;
+function switchSubTab(tab) {
+    currentSubTab = tab;
     
-    // 직원관리 탭인 경우
-    if (subTab === 'staff-manage') {
-        document.getElementById('calendarArea').parentElement.style.display = 'none';
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    // 모든 컨텐츠 숨기기
+    document.getElementById('staff-view-only').style.display = 'none';
+    document.getElementById('manager-schedule-view').style.display = 'none';
+    document.getElementById('admin-staff-manage').style.display = 'none';
+    
+    if (tab === 'daily' || tab === 'weekly' || tab === 'monthly') {
+        document.getElementById('manager-schedule-view').style.display = 'block';
+        renderCalendar();
+    } else if (tab === 'staff-manage') {
         document.getElementById('admin-staff-manage').style.display = 'block';
         loadStaffList();
-    } else {
-        // 일별/주간/월별 탭인 경우
-        document.getElementById('admin-staff-manage').style.display = 'none';
-        document.getElementById('calendarArea').parentElement.style.display = 'block';
-        renderCalendar();
     }
 }
 
@@ -750,6 +756,233 @@ function formatNumber(num) {
 function calculatePercentage(part, total) {
     return total > 0 ? ((part / total) * 100).toFixed(1) : '0.0';
 }
+
+// ===== 직원 관리 기능 =====
+
+// 직원 목록 불러오기
+async function loadStaffList() {
+    try {
+        const res = await fetch('/api/staff/list');
+        const data = await res.json();
+        
+        if (data.success) {
+            staffListData = data.staff;
+            renderStaffList();
+        }
+    } catch (e) {
+        console.error('직원 목록 로드 실패:', e);
+    }
+}
+
+// 직원 목록 렌더링
+function renderStaffList() {
+    const container = document.getElementById('staffListArea');
+    if (!container) return;
+    
+    if (staffListData.length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:#999; padding:20px;">등록된 직원이 없습니다.</p>';
+        return;
+    }
+    
+    let html = '<div style="display:grid; gap:10px;">';
+    
+    staffListData.forEach(staff => {
+        const roleText = staff.role === 'admin' ? '사장' : 
+                        staff.role === 'manager' ? '매니저' : '알바';
+        const wageText = staff.hourly_wage > 0 ? `${staff.hourly_wage.toLocaleString()}원/시간` : '미설정';
+        
+        html += `
+            <div style="background:white; border:1px solid #ddd; border-left:4px solid #2e7d32; padding:15px; border-radius:5px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div style="font-size:16px; font-weight:bold; margin-bottom:5px;">
+                            ${staff.name} <span style="background:#e8f5e9; color:#2e7d32; padding:2px 8px; border-radius:10px; font-size:11px;">${roleText}</span>
+                        </div>
+                        <div style="font-size:13px; color:#666;">
+                            ID: <strong>${staff.username}</strong> | 시급: <strong>${wageText}</strong>
+                        </div>
+                    </div>
+                    <div>
+                        ${staff.role === 'staff' ? `
+                            <button onclick="openEditWage(${staff.id}, '${staff.name}', ${staff.hourly_wage})" 
+                                    class="btn" style="background:#ff9800; padding:8px 15px; font-size:12px;">
+                                💰 시급설정
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// 일괄 등록 처리
+async function processBulkText() {
+    const text = document.getElementById('bulkText').value.trim();
+    if (!text) {
+        alert('등록할 직원 정보를 입력하세요.');
+        return;
+    }
+    
+    const lines = text.split('\n').filter(line => line.trim());
+    const staffToRegister = [];
+    
+    lines.forEach(line => {
+        // 쉼표 또는 공백으로 구분
+        let parts = line.split(',').map(p => p.trim());
+        if (parts.length < 3) {
+            parts = line.split(/\s+/);
+        }
+        
+        if (parts.length >= 3) {
+            const name = parts[0];
+            const dayStr = parts[1];
+            let timeStr = parts[2];
+            
+            // 요일 파싱
+            const workDays = [];
+            const dayMap = {
+                '일': 'Sun', '월': 'Mon', '화': 'Tue', '수': 'Wed',
+                '목': 'Thu', '금': 'Fri', '토': 'Sat'
+            };
+            
+            for (let [kor, eng] of Object.entries(dayMap)) {
+                if (dayStr.includes(kor)) {
+                    workDays.push(eng);
+                }
+            }
+            
+            // 시간 파싱 (18~23 -> 18:00~23:00)
+            timeStr = timeStr.replace('시', '').replace(' ', '');
+            if (timeStr.includes('~')) {
+                const [start, end] = timeStr.split('~');
+                const cleanStart = start.includes(':') ? start : start + ':00';
+                const cleanEnd = end.includes(':') ? end : end + ':00';
+                timeStr = `${cleanStart}~${cleanEnd}`;
+            }
+            
+            if (name && workDays.length > 0) {
+                staffToRegister.push({
+                    name: name,
+                    workDays: workDays,
+                    workTime: timeStr
+                });
+            }
+        }
+    });
+    
+    if (staffToRegister.length === 0) {
+        alert('올바른 형식으로 입력하세요.\n예시: 홍길동, 월화수, 18~23');
+        return;
+    }
+    
+    if (!confirm(`${staffToRegister.length}명의 직원을 등록하시겠습니까?`)) {
+        return;
+    }
+    
+    try {
+        const res = await fetch('/api/staff/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ staff: staffToRegister })
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            showRegisterResult(data.registered);
+            document.getElementById('bulkText').value = '';
+            loadStaffList();
+        } else {
+            alert('등록 실패: ' + (data.message || '알 수 없는 오류'));
+        }
+    } catch (e) {
+        console.error('등록 오류:', e);
+        alert('서버 통신 오류가 발생했습니다.');
+    }
+}
+
+// 등록 결과 모달 표시
+function showRegisterResult(registered) {
+    const modal = document.getElementById('staffRegisterModal');
+    const listEl = document.getElementById('registeredStaffList');
+    
+    let html = '';
+    registered.forEach((staff, idx) => {
+        html += `
+            <div style="background:white; padding:15px; margin-bottom:10px; border-radius:5px; border-left:4px solid #4caf50;">
+                <div style="font-weight:bold; margin-bottom:8px; font-size:15px;">${idx + 1}. ${staff.name}</div>
+                <div style="background:#f1f3f5; padding:10px; border-radius:4px; font-family:monospace;">
+                    <div style="margin-bottom:5px;">🆔 아이디: <strong style="color:#1976d2;">${staff.username}</strong></div>
+                    <div>🔐 비밀번호: <strong style="color:#d32f2f;">${staff.password}</strong></div>
+                </div>
+                <div style="font-size:12px; color:#666; margin-top:8px;">
+                    근무: ${staff.workDays.map(d => {
+                        const dayNames = {Sun:'일', Mon:'월', Tue:'화', Wed:'수', Thu:'목', Fri:'금', Sat:'토'};
+                        return dayNames[d];
+                    }).join(', ')}요일 ${staff.workTime}
+                </div>
+            </div>
+        `;
+    });
+    
+    listEl.innerHTML = html;
+    modal.style.display = 'flex';
+}
+
+// 모달 닫기
+function closeRegisterModal() {
+    document.getElementById('staffRegisterModal').style.display = 'none';
+}
+
+// 시급 설정 모달 열기
+function openEditWage(userId, name, currentWage) {
+    document.getElementById('editUserId').value = userId;
+    document.getElementById('editUserName').value = name;
+    document.getElementById('editWage').value = currentWage || '';
+    document.getElementById('editWageModal').style.display = 'flex';
+}
+
+// 시급 저장
+async function saveWage() {
+    const userId = document.getElementById('editUserId').value;
+    const wage = parseInt(document.getElementById('editWage').value) || 0;
+    
+    if (wage < 0) {
+        alert('시급은 0 이상이어야 합니다.');
+        return;
+    }
+    
+    try {
+        const res = await fetch('/api/staff/wage', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, wage })
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            alert('시급이 저장되었습니다.');
+            closeEditWageModal();
+            loadStaffList();
+        } else {
+            alert('저장 실패: ' + (data.message || '알 수 없는 오류'));
+        }
+    } catch (e) {
+        console.error('시급 저장 오류:', e);
+        alert('서버 통신 오류가 발생했습니다.');
+    }
+}
+
+// 시급 모달 닫기
+function closeEditWageModal() {
+    document.getElementById('editWageModal').style.display = 'none';
+}
+
 
 // ===== CSS 클래스 보조 =====
 const style = document.createElement('style');

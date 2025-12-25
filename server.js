@@ -446,5 +446,125 @@ app.get('/api/analysis', isAdmin, async (req, res) => {
     }
 });
 
+// ===== 직원 관리 API =====
+
+// 직원 목록 조회
+app.get('/api/staff/list', isAuth, async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT id, username, name, role, hourly_wage FROM users ORDER BY created_at DESC'
+        );
+        res.json({ success: true, staff: result.rows });
+    } catch (e) {
+        console.error('직원 목록 조회 실패:', e);
+        res.status(500).json({ success: false, message: '서버 오류' });
+    }
+});
+
+// 직원 일괄 등록
+app.post('/api/staff/register', isAdmin, async (req, res) => {
+    const { staff } = req.body;
+    
+    if (!staff || !Array.isArray(staff) || staff.length === 0) {
+        return res.status(400).json({ success: false, message: '직원 정보가 없습니다.' });
+    }
+    
+    const registered = [];
+    
+    try {
+        for (let person of staff) {
+            // 랜덤 ID 생성 (이름 + 4자리 숫자)
+            const namePrefix = person.name.replace(/\s/g, '').substring(0, 4);
+            const randomNum = Math.floor(1000 + Math.random() * 9000);
+            const username = `${namePrefix}${randomNum}`;
+            
+            // 랜덤 비밀번호 생성 (8자리 영숫자)
+            const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+            let password = '';
+            for (let i = 0; i < 8; i++) {
+                password += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            
+            // 비밀번호 해시화
+            const hashedPassword = await bcrypt.hash(password, 10);
+            
+            // DB에 사용자 생성
+            const userResult = await pool.query(
+                'INSERT INTO users (username, password, name, role, hourly_wage) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+                [username, hashedPassword, person.name, 'staff', 0]
+            );
+            
+            const userId = userResult.rows[0].id;
+            
+            // 스케줄 생성 (앞으로 30일간)
+            const today = new Date();
+            for (let i = 0; i < 30; i++) {
+                const checkDate = new Date(today);
+                checkDate.setDate(today.getDate() + i);
+                
+                const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                const dayName = dayNames[checkDate.getDay()];
+                
+                if (person.workDays.includes(dayName)) {
+                    const dateStr = checkDate.toISOString().split('T')[0];
+                    const [startTime, endTime] = person.workTime.split('~');
+                    
+                    await pool.query(
+                        `INSERT INTO schedules (user_id, date, start_time, end_time, type) 
+                         VALUES ($1, $2, $3, $4, $5) 
+                         ON CONFLICT (user_id, date) DO NOTHING`,
+                        [userId, dateStr, startTime, endTime, 'work']
+                    );
+                }
+            }
+            
+            // 감사 로그
+            await pool.query(
+                'INSERT INTO audit_logs (actor, action, target, details) VALUES ($1, $2, $3, $4)',
+                [req.session.user.name, '직원등록', person.name, `ID: ${username}`]
+            );
+            
+            registered.push({
+                name: person.name,
+                username: username,
+                password: password, // 평문 비밀번호 (최초 1회만 전달)
+                workDays: person.workDays,
+                workTime: person.workTime
+            });
+        }
+        
+        res.json({ success: true, registered });
+        
+    } catch (e) {
+        console.error('직원 등록 실패:', e);
+        res.status(500).json({ success: false, message: '등록 중 오류 발생' });
+    }
+});
+
+// 시급 수정
+app.put('/api/staff/wage', isAdmin, async (req, res) => {
+    const { userId, wage } = req.body;
+    
+    try {
+        await pool.query(
+            'UPDATE users SET hourly_wage = $1 WHERE id = $2',
+            [wage, userId]
+        );
+        
+        const userResult = await pool.query('SELECT name FROM users WHERE id = $1', [userId]);
+        const userName = userResult.rows[0]?.name || '알 수 없음';
+        
+        await pool.query(
+            'INSERT INTO audit_logs (actor, action, target, details) VALUES ($1, $2, $3, $4)',
+            [req.session.user.name, '시급수정', userName, `${wage}원`]
+        );
+        
+        res.json({ success: true });
+    } catch (e) {
+        console.error('시급 수정 실패:', e);
+        res.status(500).json({ success: false, message: '서버 오류' });
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Tongppap Server running on port ${PORT}`));
