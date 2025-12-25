@@ -5,6 +5,10 @@ const session = require('express-session');
 const bcrypt = require('bcrypt');
 
 const app = express();
+
+// ===== 프록시 신뢰 설정 (Railway용) =====
+app.set('trust proxy', 1);
+
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
@@ -12,44 +16,75 @@ const pool = new Pool({
 
 app.use(express.json());
 app.use(express.static('public'));
+
+// ===== 세션 설정 수정 =====
 app.use(session({
     secret: process.env.SESSION_SECRET || 'tongppap_secret_2024',
     resave: false,
     saveUninitialized: false,
     cookie: { 
         maxAge: 24 * 60 * 60 * 1000,
-        secure: process.env.NODE_ENV === 'production'
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
     }
 }));
 
+// ===== 세션 디버깅 미들웨어 =====
+app.use((req, res, next) => {
+    console.log('📍 Request:', req.method, req.path);
+    console.log('👤 Session User:', req.session.user);
+    next();
+});
+
 // ===== Middleware =====
 const isAuth = (req, res, next) => {
-    if (req.session.user) next();
-    else res.status(401).json({ success: false, message: 'Login required' });
+    console.log('🔐 isAuth check:', req.session.user);
+    if (req.session.user) {
+        next();
+    } else {
+        res.status(401).json({ success: false, message: 'Login required' });
+    }
 };
 
 const isAdmin = (req, res, next) => {
-    if (req.session.user && req.session.user.role === 'admin') next();
-    else res.status(403).json({ success: false, message: 'Admin only' });
+    console.log('👑 isAdmin check:', req.session.user);
+    if (req.session.user && req.session.user.role === 'admin') {
+        next();
+    } else {
+        res.status(403).json({ success: false, message: 'Admin only' });
+    }
 };
 
 const isManagerOrAdmin = (req, res, next) => {
-    if (req.session.user && ['admin', 'manager'].includes(req.session.user.role)) next();
-    else res.status(403).json({ success: false, message: 'Manager or Admin only' });
+    console.log('💼 isManagerOrAdmin check:', req.session.user);
+    if (req.session.user && ['admin', 'manager'].includes(req.session.user.role)) {
+        next();
+    } else {
+        res.status(403).json({ 
+            success: false, 
+            message: 'Manager or Admin only',
+            debug: { user: req.session.user }
+        });
+    }
 };
 
 // ===== Auth APIs =====
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
+    console.log('🔑 Login attempt:', username);
+    
     try {
         const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
         if (result.rows.length === 0) {
+            console.log('❌ User not found:', username);
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
         
         const user = result.rows[0];
         const match = await bcrypt.compare(password, user.password);
         if (!match) {
+            console.log('❌ Password mismatch for:', username);
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
 
@@ -60,25 +95,39 @@ app.post('/api/login', async (req, res) => {
             role: user.role 
         };
         
-        await pool.query(
-            'INSERT INTO audit_logs (actor, action, target, details) VALUES ($1, $2, $3, $4)',
-            [user.name, 'LOGIN', username, `Role: ${user.role}`]
-        );
+        console.log('✅ Login success:', req.session.user);
         
-        res.json({ success: true, user: req.session.user });
+        // 세션 저장 강제 실행
+        req.session.save((err) => {
+            if (err) {
+                console.error('❌ Session save error:', err);
+                return res.status(500).json({ error: 'Session save failed' });
+            }
+            
+            console.log('💾 Session saved successfully');
+            
+            pool.query(
+                'INSERT INTO audit_logs (actor, action, target, details) VALUES ($1, $2, $3, $4)',
+                [user.name, 'LOGIN', username, `Role: ${user.role}`]
+            ).catch(e => console.error('Audit log error:', e));
+            
+            res.json({ success: true, user: req.session.user });
+        });
     } catch (err) {
-        console.error(err);
+        console.error('❌ Login error:', err);
         res.status(500).json({ error: err.message });
     }
 });
 
 app.post('/api/logout', (req, res) => {
     const userName = req.session.user?.name || 'Unknown';
+    console.log('👋 Logout:', userName);
     req.session.destroy();
     res.json({ success: true });
 });
 
 app.get('/api/me', (req, res) => {
+    console.log('👤 /api/me called, session:', req.session.user);
     res.json({ user: req.session.user || null });
 });
 
@@ -143,7 +192,7 @@ app.delete('/api/schedules/:id', isManagerOrAdmin, async (req, res) => {
 
 // ===== Clock In/Out APIs (for staff) =====
 app.post('/api/clock', isAuth, async (req, res) => {
-    const { type, lat, lng } = req.body; // type: 'in' or 'out'
+    const { type, lat, lng } = req.body;
     const today = new Date().toISOString().split('T')[0];
     
     try {
@@ -398,4 +447,4 @@ app.get('/api/analysis', isAdmin, async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Tongppap Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`✅ Tongppap Server running on port ${PORT}`));
