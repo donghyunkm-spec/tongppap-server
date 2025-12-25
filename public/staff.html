@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <!-- 로그인 모달 -->
     <div id="loginOverlay" class="modal-overlay" style="display:flex;">
         <div class="modal-box">
             <h2 style="text-align:center; color:#2e7d32;">🔐 통빵 관리자 로그인</h2>
@@ -26,7 +25,6 @@
         </div>
     </div>
 
-    <!-- 메인 컨테이너 -->
     <div class="container" id="mainContent" style="display:none;">
         <div class="header">
             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -38,16 +36,13 @@
             </div>
         </div>
 
-        <!-- 탭 메뉴 -->
         <div class="tabs">
             <button class="tab active" onclick="switchTab('schedule')">🕒 근무/직원관리</button>
             <button class="tab manager-only" onclick="switchTab('accounting')">💰 매입/매출</button>
             <button class="tab admin-only" onclick="switchTab('analysis')">📊 손익분석</button>
         </div>
 
-        <!-- ========== 근무/직원관리 탭 ========== -->
         <div id="schedule-content" class="tab-content active">
-            <!-- 알바용 뷰 -->
             <div id="staff-view-only" style="display:none;">
                 <div class="status-container">
                     <h3>👋 나의 근무 일정</h3>
@@ -65,7 +60,6 @@
                 </div>
             </div>
 
-            <!-- 관리자용 뷰 -->
             <div id="manager-schedule-view" style="display:none;">
                 <div class="accounting-card" style="padding:10px; margin-bottom:15px;">
                     <div class="tabs" style="grid-template-columns: repeat(4, 1fr); margin-bottom:0;">
@@ -86,14 +80,12 @@
                 </div>
             </div>
             
-            <!-- 직원 관리 (사장님 전용) -->
             <div id="admin-staff-manage" style="display:none;" class="status-container">
                 <h3>👥 직원/알바 관리</h3>
                 <div style="background:#fff3cd; padding:10px; border-radius:5px; margin-bottom:15px; font-size:13px;">
                     💡 직원을 등록하면 자동으로 ID/PW가 생성됩니다. 생성된 정보는 직원에게 전달하세요.
                 </div>
                 
-                <!-- 일괄 등록 섹션 -->
                 <div style="margin-bottom: 30px; background:#e8f5e9; padding:15px; border-radius:8px;">
                     <h3>📝 일괄 등록 (빠른 등록)</h3>
                     <div style="background:white; padding:10px; border-radius:5px; margin:10px 0; font-size:12px;">
@@ -109,7 +101,6 @@
 
                 <hr style="margin:20px 0; border:none; border-top:2px solid #eee;">
 
-                <!-- 직원 목록 -->
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
                     <h3 style="margin:0;">📋 등록된 직원/알바 목록</h3>
                     <button onclick="openAddStaffModal()" class="btn" style="background:#1976d2; padding:8px 15px; font-size:13px;">
@@ -119,7 +110,6 @@
                 <div id="staffListArea"></div>
             </div>
 
-        <!-- ========== 매입/매출 탭 ========== -->
         <div id="accounting-content" class="tab-content">
             <div class="accounting-card" style="padding:10px; margin-bottom:15px;">
                 <div class="tabs" style="grid-template-columns: repeat(5, 1fr); margin-bottom:0;">
@@ -131,7 +121,6 @@
                 </div>
             </div>
 
-            <!-- 일일입력 -->
             <div id="daily-input" class="acc-sub-content active">
                 <div class="status-container">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:15px;">
@@ -175,7 +164,6 @@
                 </div>
             </div>
 
-            <!-- 입력내역 -->
             <div id="history" class="acc-sub-content">
                 <div class="status-container">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
@@ -191,7 +179,6 @@
                 </div>
             </div>
 
-            <!-- 예상순익 (사장님 전용) -->
             <div id="prediction" class="acc-sub-content">
                 <div class="status-container">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
@@ -214,7 +201,6 @@
                 </div>
             </div>
 
-            <!-- 월간분석 (사장님 전용) -->
             <div id="dashboard" class="acc-sub-content">
                 <div class="status-container">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
@@ -237,7 +223,6 @@
                 </div>
             </div>
 
-            <!-- 고정비 설정 (사장님 전용) -->
             <div id="fixed-cost" class="acc-sub-content">
                 <div class="status-container">
                     <h3>🏗️ 월 고정비 설정 (<span id="fixMonthDisplay"></span>)</h3>
@@ -256,7 +241,6 @@
             </div>
         </div>
 
-        <!-- ========== 손익분석 탭 (사장님 전용) ========== -->
         <div id="analysis-content" class="tab-content">
             <div class="status-container">
                 <div style="text-align:center; margin-bottom:20px;">
@@ -276,7 +260,6 @@
         </div>
     </div>
 
-    <!-- 직원 급여 수정 모달 -->
     <div id="editWageModal" class="modal-overlay">
         <div class="modal-box">
             <h3>💰 시급 설정</h3>
@@ -296,7 +279,6 @@
         </div>
     </div>
 
-    <!-- 직원 추가/수정 모달 -->
     <div id="staffModal" class="modal-overlay">
         <div class="modal-box" style="max-width:600px;">
             <h3 id="staffModalTitle">➕ 직원 추가</h3>
@@ -346,22 +328,6 @@
         </div>
     </div>
 
-    <!-- 직원 등록 결과 모달 -->
-    <div id="staffRegisterModal" class="modal-overlay">
-        <div class="modal-box" style="max-width:600px;">
-            <h3>✅ 직원 등록 완료!</h3>
-            <p style="color:#666; font-size:13px; margin-bottom:20px;">
-                아래 정보를 직원에게 전달하세요. (화면 캡처 또는 복사)
-            </p>
-            <div id="registeredStaffList" style="background:#f8f9fa; padding:15px; border-radius:5px; max-height:400px; overflow-y:auto;">
-            </div>
-            <div class="modal-actions" style="margin-top:20px;">
-                <button class="btn" onclick="closeRegisterModal()" style="background:#2e7d32;">확인</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 직원 등록 결과 모달 -->
     <div id="staffRegisterModal" class="modal-overlay">
         <div class="modal-box" style="max-width:600px;">
             <h3>✅ 직원 등록 완료!</h3>

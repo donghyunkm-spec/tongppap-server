@@ -344,15 +344,14 @@ async function deleteSchedule(id) {
 
 // ===== 직원 관리 기능 =====
 
-// 직원 목록 불러오기
+// 직원 목록 조회
 async function loadStaffList() {
     try {
         const res = await fetch('/api/staff/list');
         const data = await res.json();
         
         if (data.success) {
-            // 사장, 매니저 제외하고 직원/알바만
-            staffListData = data.staff.filter(s => s.role === 'staff');
+            staffListData = data.staff;
             renderStaffList();
         }
     } catch (e) {
@@ -408,6 +407,12 @@ function renderStaffList() {
                                 class="btn" style="background:#1976d2; padding:8px 15px; font-size:12px;">
                             ✏️ 수정
                         </button>
+                         ${staff.role === 'staff' ? `
+                            <button onclick="openEditWage(${staff.id}, '${staff.name}', ${staff.hourly_wage})" 
+                                    class="btn" style="background:#ff9800; padding:8px 15px; font-size:12px;">
+                                💰 시급
+                            </button>
+                        ` : ''}
                     </div>
                 </div>
             </div>
@@ -667,7 +672,7 @@ function closeRegisterModal() {
     document.getElementById('staffRegisterModal').style.display = 'none';
 }
 
-// 시급 모달 (기존 기능 유지)
+// 시급 모달
 function openEditWage(userId, name, currentWage) {
     document.getElementById('editUserId').value = userId;
     document.getElementById('editUserName').value = name;
@@ -708,43 +713,6 @@ async function saveWage() {
 
 function closeEditWageModal() {
     document.getElementById('editWageModal').style.display = 'none';
-}
-
-function openEditWage(id, name, wage) {
-    document.getElementById('editUserId').value = id;
-    document.getElementById('editUserName').value = name;
-    document.getElementById('editWage').value = wage;
-    document.getElementById('editWageModal').style.display = 'flex';
-}
-
-function closeEditWageModal() {
-    document.getElementById('editWageModal').style.display = 'none';
-}
-
-async function saveWage() {
-    const id = document.getElementById('editUserId').value;
-    const wage = document.getElementById('editWage').value;
-    
-    if (!wage || wage < 0) {
-        alert('올바른 시급을 입력하세요.');
-        return;
-    }
-    
-    try {
-        const res = await fetch(`/api/users/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ hourly_wage: parseInt(wage) })
-        });
-        
-        if (res.ok) {
-            alert('저장되었습니다.');
-            closeEditWageModal();
-            loadStaffList();
-        }
-    } catch (e) {
-        alert('저장 실패');
-    }
 }
 
 // ===== 매입/매출 관리 =====
@@ -816,17 +784,6 @@ async function saveDailyData() {
     } catch (e) {
         alert('저장 실패');
     }
-}
-
-async function loadHistory() {
-    const month = new Date().toISOString().slice(0, 7);
-    const listEl = document.getElementById('historyList');
-    listEl.innerHTML = '<div style="text-align:center; padding:20px; color:#999;">입력 내역 로드 중...</div>';
-    
-    // TODO: 월별 입력 내역 조회 API 구현 후 연동
-    setTimeout(() => {
-        listEl.innerHTML = '<div style="text-align:center; padding:20px; color:#999;">입력 내역 표시 기능은 추후 구현 예정입니다.</div>';
-    }, 500);
 }
 
 // ===== 고정비 관리 =====
@@ -1305,7 +1262,6 @@ function displayDashboard(analysis) {
     container.innerHTML = html;
 }
 
-
 function renderAnalysis(type, btn) {
     if (!analysisData) {
         document.getElementById('analysisResult').innerHTML = '<div style="text-align:center; padding:20px; color:#999;">먼저 월을 선택하세요.</div>';
@@ -1414,52 +1370,6 @@ function renderAnalysis(type, btn) {
     }
 }
 
-// ===== 예상순익 (간이버전) =====
-function renderPrediction() {
-    const storeType = document.getElementById('predStoreSelect').value;
-    const resultEl = document.getElementById('predictionResult');
-    
-    if (!analysisData) {
-        resultEl.innerHTML = '<div style="text-align:center; padding:20px; color:#999;">먼저 손익분석 탭에서 월을 선택하세요.</div>';
-        return;
-    }
-    
-    const d = analysisData[storeType];
-    const f = (n) => n ? parseInt(n).toLocaleString() : '0';
-    
-    resultEl.innerHTML = `
-        <div style="background:#f3e5f5; padding:20px; border-radius:10px; text-align:center;">
-            <div style="font-size:14px; color:#666; margin-bottom:10px;">예상 손익 (현재까지)</div>
-            <div style="font-size:32px; font-weight:bold; color:${d.profit >= 0 ? '#2e7d32' : '#d32f2f'};">
-                ${f(d.profit)}원
-            </div>
-            <div style="margin-top:15px; font-size:13px; color:#555;">
-                매출: ${f(d.sales)} | 비용: ${f(d.variable + (d.fixed?.total || 0))}
-            </div>
-        </div>
-        <div style="margin-top:15px; padding:10px; background:#fff3cd; border-radius:5px; font-size:12px; color:#856404;">
-            ℹ️ 현재까지 입력된 데이터 기준입니다. 일할 계산 등 고급 기능은 추후 추가 예정입니다.
-        </div>
-    `;
-}
-
-// ===== 월간분석 (간이버전) =====
-function renderDashboard() {
-    const storeType = document.getElementById('dashStoreSelect').value;
-    const resultEl = document.getElementById('dashboardResult');
-    
-    if (!analysisData) {
-        resultEl.innerHTML = '<div style="text-align:center; padding:20px; color:#999;">먼저 손익분석 탭에서 월을 선택하세요.</div>';
-        return;
-    }
-    
-    renderAnalysis(storeType);
-    
-    const clone = document.getElementById('analysisResult').cloneNode(true);
-    clone.id = 'dashboardResult';
-    resultEl.parentNode.replaceChild(clone, resultEl);
-}
-
 // ===== 유틸리티 함수 =====
 function formatNumber(num) {
     return num ? parseInt(num).toLocaleString() : '0';
@@ -1468,233 +1378,6 @@ function formatNumber(num) {
 function calculatePercentage(part, total) {
     return total > 0 ? ((part / total) * 100).toFixed(1) : '0.0';
 }
-
-// ===== 직원 관리 기능 =====
-
-// 직원 목록 불러오기
-async function loadStaffList() {
-    try {
-        const res = await fetch('/api/staff/list');
-        const data = await res.json();
-        
-        if (data.success) {
-            staffListData = data.staff;
-            renderStaffList();
-        }
-    } catch (e) {
-        console.error('직원 목록 로드 실패:', e);
-    }
-}
-
-// 직원 목록 렌더링
-function renderStaffList() {
-    const container = document.getElementById('staffListArea');
-    if (!container) return;
-    
-    if (staffListData.length === 0) {
-        container.innerHTML = '<p style="text-align:center; color:#999; padding:20px;">등록된 직원이 없습니다.</p>';
-        return;
-    }
-    
-    let html = '<div style="display:grid; gap:10px;">';
-    
-    staffListData.forEach(staff => {
-        const roleText = staff.role === 'admin' ? '사장' : 
-                        staff.role === 'manager' ? '매니저' : '알바';
-        const wageText = staff.hourly_wage > 0 ? `${staff.hourly_wage.toLocaleString()}원/시간` : '미설정';
-        
-        html += `
-            <div style="background:white; border:1px solid #ddd; border-left:4px solid #2e7d32; padding:15px; border-radius:5px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div>
-                        <div style="font-size:16px; font-weight:bold; margin-bottom:5px;">
-                            ${staff.name} <span style="background:#e8f5e9; color:#2e7d32; padding:2px 8px; border-radius:10px; font-size:11px;">${roleText}</span>
-                        </div>
-                        <div style="font-size:13px; color:#666;">
-                            ID: <strong>${staff.username}</strong> | 시급: <strong>${wageText}</strong>
-                        </div>
-                    </div>
-                    <div>
-                        ${staff.role === 'staff' ? `
-                            <button onclick="openEditWage(${staff.id}, '${staff.name}', ${staff.hourly_wage})" 
-                                    class="btn" style="background:#ff9800; padding:8px 15px; font-size:12px;">
-                                💰 시급설정
-                            </button>
-                        ` : ''}
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-    
-    html += '</div>';
-    container.innerHTML = html;
-}
-
-// 일괄 등록 처리
-async function processBulkText() {
-    const text = document.getElementById('bulkText').value.trim();
-    if (!text) {
-        alert('등록할 직원 정보를 입력하세요.');
-        return;
-    }
-    
-    const lines = text.split('\n').filter(line => line.trim());
-    const staffToRegister = [];
-    
-    lines.forEach(line => {
-        // 쉼표 또는 공백으로 구분
-        let parts = line.split(',').map(p => p.trim());
-        if (parts.length < 3) {
-            parts = line.split(/\s+/);
-        }
-        
-        if (parts.length >= 3) {
-            const name = parts[0];
-            const dayStr = parts[1];
-            let timeStr = parts[2];
-            
-            // 요일 파싱
-            const workDays = [];
-            const dayMap = {
-                '일': 'Sun', '월': 'Mon', '화': 'Tue', '수': 'Wed',
-                '목': 'Thu', '금': 'Fri', '토': 'Sat'
-            };
-            
-            for (let [kor, eng] of Object.entries(dayMap)) {
-                if (dayStr.includes(kor)) {
-                    workDays.push(eng);
-                }
-            }
-            
-            // 시간 파싱 (18~23 -> 18:00~23:00)
-            timeStr = timeStr.replace('시', '').replace(' ', '');
-            if (timeStr.includes('~')) {
-                const [start, end] = timeStr.split('~');
-                const cleanStart = start.includes(':') ? start : start + ':00';
-                const cleanEnd = end.includes(':') ? end : end + ':00';
-                timeStr = `${cleanStart}~${cleanEnd}`;
-            }
-            
-            if (name && workDays.length > 0) {
-                staffToRegister.push({
-                    name: name,
-                    workDays: workDays,
-                    workTime: timeStr
-                });
-            }
-        }
-    });
-    
-    if (staffToRegister.length === 0) {
-        alert('올바른 형식으로 입력하세요.\n예시: 홍길동, 월화수, 18~23');
-        return;
-    }
-    
-    if (!confirm(`${staffToRegister.length}명의 직원을 등록하시겠습니까?`)) {
-        return;
-    }
-    
-    try {
-        const res = await fetch('/api/staff/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ staff: staffToRegister })
-        });
-        
-        const data = await res.json();
-        
-        if (data.success) {
-            showRegisterResult(data.registered);
-            document.getElementById('bulkText').value = '';
-            loadStaffList();
-        } else {
-            alert('등록 실패: ' + (data.message || '알 수 없는 오류'));
-        }
-    } catch (e) {
-        console.error('등록 오류:', e);
-        alert('서버 통신 오류가 발생했습니다.');
-    }
-}
-
-// 등록 결과 모달 표시
-function showRegisterResult(registered) {
-    const modal = document.getElementById('staffRegisterModal');
-    const listEl = document.getElementById('registeredStaffList');
-    
-    let html = '';
-    registered.forEach((staff, idx) => {
-        html += `
-            <div style="background:white; padding:15px; margin-bottom:10px; border-radius:5px; border-left:4px solid #4caf50;">
-                <div style="font-weight:bold; margin-bottom:8px; font-size:15px;">${idx + 1}. ${staff.name}</div>
-                <div style="background:#f1f3f5; padding:10px; border-radius:4px; font-family:monospace;">
-                    <div style="margin-bottom:5px;">🆔 아이디: <strong style="color:#1976d2;">${staff.username}</strong></div>
-                    <div>🔐 비밀번호: <strong style="color:#d32f2f;">${staff.password}</strong></div>
-                </div>
-                <div style="font-size:12px; color:#666; margin-top:8px;">
-                    근무: ${staff.workDays.map(d => {
-                        const dayNames = {Sun:'일', Mon:'월', Tue:'화', Wed:'수', Thu:'목', Fri:'금', Sat:'토'};
-                        return dayNames[d];
-                    }).join(', ')}요일 ${staff.workTime}
-                </div>
-            </div>
-        `;
-    });
-    
-    listEl.innerHTML = html;
-    modal.style.display = 'flex';
-}
-
-// 모달 닫기
-function closeRegisterModal() {
-    document.getElementById('staffRegisterModal').style.display = 'none';
-}
-
-// 시급 설정 모달 열기
-function openEditWage(userId, name, currentWage) {
-    document.getElementById('editUserId').value = userId;
-    document.getElementById('editUserName').value = name;
-    document.getElementById('editWage').value = currentWage || '';
-    document.getElementById('editWageModal').style.display = 'flex';
-}
-
-// 시급 저장
-async function saveWage() {
-    const userId = document.getElementById('editUserId').value;
-    const wage = parseInt(document.getElementById('editWage').value) || 0;
-    
-    if (wage < 0) {
-        alert('시급은 0 이상이어야 합니다.');
-        return;
-    }
-    
-    try {
-        const res = await fetch('/api/staff/wage', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId, wage })
-        });
-        
-        const data = await res.json();
-        
-        if (data.success) {
-            alert('시급이 저장되었습니다.');
-            closeEditWageModal();
-            loadStaffList();
-        } else {
-            alert('저장 실패: ' + (data.message || '알 수 없는 오류'));
-        }
-    } catch (e) {
-        console.error('시급 저장 오류:', e);
-        alert('서버 통신 오류가 발생했습니다.');
-    }
-}
-
-// 시급 모달 닫기
-function closeEditWageModal() {
-    document.getElementById('editWageModal').style.display = 'none';
-}
-
 
 // ===== CSS 클래스 보조 =====
 const style = document.createElement('style');
