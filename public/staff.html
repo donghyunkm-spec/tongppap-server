@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>통빱 통합관리 시스템</title>
+    <title>통빵 통합관리 시스템</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -62,7 +62,7 @@
 
             <div id="manager-schedule-view" style="display:none;">
                 <div class="accounting-card" style="padding:10px; margin-bottom:15px;">
-                    <div class="tabs" style="grid-template-columns: repeat(4, 1fr); margin-bottom:0;">
+                    <div class="tabs" id="schedule-subtabs" style="grid-template-columns: repeat(4, 1fr); margin-bottom:0;">
                         <button class="tab active" onclick="switchSubTab('daily')">일별</button>
                         <button class="tab" onclick="switchSubTab('weekly')">주간</button>
                         <button class="tab" onclick="switchSubTab('monthly')">월별</button>
@@ -70,13 +70,27 @@
                     </div>
                 </div>
 
-                <div class="status-container">
+                <div id="daily-schedule-view" class="status-container">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
                         <button onclick="moveCalendar(-1)" class="number-btn">&lt;</button>
                         <h2 id="calendarTitle" style="margin:0;">2024년 12월</h2>
                         <button onclick="moveCalendar(1)" class="number-btn">&gt;</button>
                     </div>
                     <div id="calendarArea"></div>
+                </div>
+
+                <div id="weekly-schedule-view" class="status-container" style="display:none;">
+                    <h3>📅 주간 근무 현황</h3>
+                    <div id="weeklyCalendarArea">
+                        <p style="text-align:center; color:#999; padding:40px;">주간 뷰 구현 예정입니다.</p>
+                    </div>
+                </div>
+
+                <div id="monthly-schedule-view" class="status-container" style="display:none;">
+                    <h3>📅 월간 근무 현황</h3>
+                    <div id="monthlyCalendarArea">
+                        <p style="text-align:center; color:#999; padding:40px;">월간 뷰 구현 예정입니다.</p>
+                    </div>
                 </div>
             </div>
             
@@ -89,10 +103,10 @@
                 <div style="margin-bottom: 30px; background:#e8f5e9; padding:15px; border-radius:8px;">
                     <h3>📝 일괄 등록 (빠른 등록)</h3>
                     <div style="background:white; padding:10px; border-radius:5px; margin:10px 0; font-size:12px;">
-                        <strong>💡 입력 예시:</strong> 홍길동, 월화수, 18~23<br>
+                        <strong>💡 입력 예시:</strong> 홍길동, 월화수, 18:00~23:00<br>
                         <span style="color:#666;">* 한 줄에 한 명씩 입력 (이름, 근무요일, 근무시간) - 시급제 알바로 등록됩니다</span>
                     </div>
-                    <textarea id="bulkText" placeholder="홍길동, 월화수, 18~23&#10;김영희, 목금토, 17~22" 
+                    <textarea id="bulkText" placeholder="홍길동, 월화수, 18:00~23:00&#10;김영희, 목금토, 17:00~22:00" 
                             style="width:100%; height:100px; padding:10px; border:1px solid #ddd; border-radius:5px; font-size:14px;"></textarea>
                     <button class="btn" onclick="processBulkText()" style="width:100%; margin-top:10px; background:#2e7d32;">
                         ✨ 한 번에 등록하기
@@ -109,6 +123,7 @@
                 </div>
                 <div id="staffListArea"></div>
             </div>
+        </div>
 
         <div id="accounting-content" class="tab-content">
             <div class="accounting-card" style="padding:10px; margin-bottom:15px;">
@@ -134,32 +149,37 @@
                     </div>
 
                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:20px;">
-                        <div class="accounting-card" style="border-top:4px solid #1976D2;">
-                            <h4 style="color:#1976D2; margin-bottom:10px;">⚾ 통빵 1루 매출</h4>
-                            <div class="input-group-row"><span>💳 카드</span><input type="number" id="b1_card" class="money-input" placeholder="0"></div>
-                            <div class="input-group-row"><span>💵 현금</span><input type="number" id="b1_cash" class="money-input" placeholder="0"></div>
-                            <div class="input-group-row"><span>🛵 배달타자</span><input type="number" id="b1_deliv" class="money-input" placeholder="0"></div>
+                        <div class="input-box">
+                            <h4 style="margin-top:0;">🏪 1루 매출</h4>
+                            <div class="input-grid">
+                                <div><span class="category-label">💳 카드</span><input type="number" id="base1_card" class="money-input" placeholder="0"></div>
+                                <div><span class="category-label">💵 현금</span><input type="number" id="base1_cash" class="money-input" placeholder="0"></div>
+                                <div><span class="category-label">🚚 배달</span><input type="number" id="base1_delivery" class="money-input" placeholder="0"></div>
+                            </div>
                         </div>
-                        <div class="accounting-card" style="border-top:4px solid #E64A19;">
-                            <h4 style="color:#E64A19; margin-bottom:10px;">⚾ 통빵 3루 매출</h4>
-                            <div class="input-group-row"><span>💳 카드</span><input type="number" id="b3_card" class="money-input" placeholder="0"></div>
-                            <div class="input-group-row"><span>💵 현금</span><input type="number" id="b3_cash" class="money-input" placeholder="0"></div>
-                            <div class="input-group-row"><span>🛵 배달타자</span><input type="number" id="b3_deliv" class="money-input" placeholder="0"></div>
+                        
+                        <div class="input-box">
+                            <h4 style="margin-top:0;">🏪 3루 매출</h4>
+                            <div class="input-grid">
+                                <div><span class="category-label">💳 카드</span><input type="number" id="base3_card" class="money-input" placeholder="0"></div>
+                                <div><span class="category-label">💵 현금</span><input type="number" id="base3_cash" class="money-input" placeholder="0"></div>
+                                <div><span class="category-label">🚚 배달</span><input type="number" id="base3_delivery" class="money-input" placeholder="0"></div>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="accounting-card" style="border-top:4px solid #FBC02D;">
-                        <h4 style="color:#F57F17; margin-bottom:10px;">💸 공통 일일 지출 (자동배분)</h4>
-                        <p style="font-size:12px; color:#666; margin-bottom:10px;">* 매출 비율로 1루/3루에 자동 배분됩니다</p>
+                    <div class="input-box">
+                        <h4 style="margin-top:0;">💸 일일 지출</h4>
                         <div class="input-grid">
-                            <div><span class="category-label">🚚 고센유통</span><input type="number" id="ex_gosen" class="money-input" placeholder="0"></div>
-                            <div><span class="category-label">🥩 한강유통</span><input type="number" id="ex_hangang" class="money-input" placeholder="0"></div>
-                            <div><span class="category-label">🎸 기타잡비</span><input type="number" id="ex_etc" class="money-input" placeholder="0"></div>
+                            <div><span class="category-label">📦 고센유통</span><input type="number" id="gosen" class="money-input" placeholder="0"></div>
+                            <div><span class="category-label">📦 한강유통</span><input type="number" id="hangang" class="money-input" placeholder="0"></div>
+                            <div><span class="category-label">📦 기타잡비</span><input type="number" id="etc_cost" class="money-input" placeholder="0"></div>
                         </div>
-                        <div style="margin-top:10px;">
-                            <span class="category-label">📝 특이사항</span>
-                            <input type="text" id="ex_note" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;" placeholder="예: 단체 예약 취소 등">
-                        </div>
+                    </div>
+
+                    <div class="input-box">
+                        <h4 style="margin-top:0;">📝 특이사항</h4>
+                        <textarea id="remarks" placeholder="특이사항을 입력하세요..." style="width:100%; height:80px; padding:10px; border:1px solid #ddd; border-radius:5px; font-size:14px;"></textarea>
                     </div>
                 </div>
             </div>
@@ -167,13 +187,10 @@
             <div id="history" class="acc-sub-content">
                 <div class="status-container">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                        <h3 style="margin:0;">📋 이번 달 입력 내역</h3>
-                        <div style="display:flex; gap:10px;">
-                            <button onclick="changeHistoryMonth(-1)" class="number-btn">&lt;</button>
-                            <span id="historyMonthDisplay" style="font-size:16px; font-weight:bold; min-width:100px; text-align:center;">2024년 12월</span>
-                            <button onclick="changeHistoryMonth(1)" class="number-btn">&gt;</button>
-                            <button onclick="goToCurrentMonth()" style="background:white; border:1px solid #2e7d32; color:#2e7d32; padding:8px 15px; border-radius:5px; cursor:pointer; font-size:13px;">📅 이번달</button>
-                        </div>
+                        <button onclick="changeHistoryMonth(-1)" class="number-btn">&lt;</button>
+                        <h3 style="margin:0;" id="historyMonthDisplay">2024년 12월</h3>
+                        <button onclick="changeHistoryMonth(1)" class="number-btn">&gt;</button>
+                        <button onclick="goToCurrentMonth()" style="background:white; border:1px solid #2e7d32; color:#2e7d32; padding:8px 15px; border-radius:5px; cursor:pointer; font-size:13px;">📅 이번 달</button>
                     </div>
                     <div id="historyList"></div>
                 </div>
@@ -181,14 +198,11 @@
 
             <div id="prediction" class="acc-sub-content">
                 <div class="status-container">
+                    <h3>📊 예상 순익 분석 (<span id="predMonthDisplay"></span>)</h3>
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                        <h3 style="margin:0;">🔮 예상 손익 분석</h3>
-                        <div style="display:flex; gap:10px; align-items:center;">
-                            <button onclick="changePredMonth(-1)" class="number-btn">&lt;</button>
-                            <span id="predMonthDisplay" style="font-size:16px; font-weight:bold; min-width:100px; text-align:center;">2024년 12월</span>
-                            <button onclick="changePredMonth(1)" class="number-btn">&gt;</button>
-                            <button onclick="goToPredCurrentMonth()" style="background:white; border:1px solid #2e7d32; color:#2e7d32; padding:8px 15px; border-radius:5px; cursor:pointer; font-size:13px;">📅 이번달</button>
-                        </div>
+                        <button onclick="changePredMonth(-1)" class="number-btn">&lt;</button>
+                        <button onclick="changePredMonth(1)" class="number-btn">&gt;</button>
+                        <button onclick="goToPredCurrentMonth()" style="background:white; border:1px solid #2e7d32; color:#2e7d32; padding:8px 15px; border-radius:5px; cursor:pointer; font-size:13px;">📅 이번 달</button>
                     </div>
                     <div style="text-align:center; margin:20px 0;">
                         <select id="predStoreSelect" onchange="renderPrediction()" style="padding:10px; font-size:16px; border:2px solid #2e7d32; border-radius:5px;">
@@ -203,14 +217,11 @@
 
             <div id="dashboard" class="acc-sub-content">
                 <div class="status-container">
+                    <h3>📈 월간 분석 (<span id="dashMonthDisplay"></span>)</h3>
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                        <h3 style="margin:0;">📊 월간 손익 분석</h3>
-                        <div style="display:flex; gap:10px; align-items:center;">
-                            <button onclick="changeDashMonth(-1)" class="number-btn">&lt;</button>
-                            <span id="dashMonthDisplay" style="font-size:16px; font-weight:bold; min-width:100px; text-align:center;">2024년 12월</span>
-                            <button onclick="changeDashMonth(1)" class="number-btn">&gt;</button>
-                            <button onclick="goToDashCurrentMonth()" style="background:white; border:1px solid #2e7d32; color:#2e7d32; padding:8px 15px; border-radius:5px; cursor:pointer; font-size:13px;">📅 이번달</button>
-                        </div>
+                        <button onclick="changeDashMonth(-1)" class="number-btn">&lt;</button>
+                        <button onclick="changeDashMonth(1)" class="number-btn">&gt;</button>
+                        <button onclick="goToDashCurrentMonth()" style="background:white; border:1px solid #2e7d32; color:#2e7d32; padding:8px 15px; border-radius:5px; cursor:pointer; font-size:13px;">📅 이번 달</button>
                     </div>
                     <div style="text-align:center; margin:20px 0;">
                         <select id="dashStoreSelect" onchange="renderDashboard()" style="padding:10px; font-size:16px; border:2px solid #2e7d32; border-radius:5px;">
@@ -260,6 +271,7 @@
         </div>
     </div>
 
+    <!-- 시급 설정 모달 -->
     <div id="editWageModal" class="modal-overlay">
         <div class="modal-box">
             <h3>💰 시급 설정</h3>
@@ -279,6 +291,7 @@
         </div>
     </div>
 
+    <!-- 직원 추가/수정 모달 -->
     <div id="staffModal" class="modal-overlay">
         <div class="modal-box" style="max-width:600px;">
             <h3 id="staffModalTitle">➕ 직원 추가</h3>
@@ -312,6 +325,42 @@
             </div>
             
             <div class="modal-field">
+                <label>근무 요일 선택</label>
+                <div style="display:grid; grid-template-columns: repeat(7, 1fr); gap:5px; margin-top:5px;">
+                    <label style="display:flex; align-items:center; font-size:13px;">
+                        <input type="checkbox" id="day_Mon" value="Mon" style="margin-right:3px;"> 월
+                    </label>
+                    <label style="display:flex; align-items:center; font-size:13px;">
+                        <input type="checkbox" id="day_Tue" value="Tue" style="margin-right:3px;"> 화
+                    </label>
+                    <label style="display:flex; align-items:center; font-size:13px;">
+                        <input type="checkbox" id="day_Wed" value="Wed" style="margin-right:3px;"> 수
+                    </label>
+                    <label style="display:flex; align-items:center; font-size:13px;">
+                        <input type="checkbox" id="day_Thu" value="Thu" style="margin-right:3px;"> 목
+                    </label>
+                    <label style="display:flex; align-items:center; font-size:13px;">
+                        <input type="checkbox" id="day_Fri" value="Fri" style="margin-right:3px;"> 금
+                    </label>
+                    <label style="display:flex; align-items:center; font-size:13px;">
+                        <input type="checkbox" id="day_Sat" value="Sat" style="margin-right:3px;"> 토
+                    </label>
+                    <label style="display:flex; align-items:center; font-size:13px;">
+                        <input type="checkbox" id="day_Sun" value="Sun" style="margin-right:3px;"> 일
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-field">
+                <label>근무 시간</label>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <input type="time" id="staffStartTime" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:5px;">
+                    <span>~</span>
+                    <input type="time" id="staffEndTime" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:5px;">
+                </div>
+            </div>
+            
+            <div class="modal-field">
                 <label>입사일</label>
                 <input type="date" id="staffStartDate">
             </div>
@@ -328,6 +377,7 @@
         </div>
     </div>
 
+    <!-- 직원 등록 완료 모달 -->
     <div id="staffRegisterModal" class="modal-overlay">
         <div class="modal-box" style="max-width:600px;">
             <h3>✅ 직원 등록 완료!</h3>
@@ -338,6 +388,50 @@
             </div>
             <div class="modal-actions" style="margin-top:20px;">
                 <button class="btn" onclick="closeRegisterModal()" style="background:#2e7d32;">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 근무 추가/수정 모달 -->
+    <div id="scheduleModal" class="modal-overlay">
+        <div class="modal-box">
+            <h3 id="scheduleModalTitle">➕ 근무/대타 추가</h3>
+            <input type="hidden" id="scheduleEditId">
+            <input type="hidden" id="scheduleUserId">
+            
+            <div class="modal-field">
+                <label>직원 선택 *</label>
+                <select id="scheduleStaffSelect" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
+                    <option value="">선택하세요</option>
+                </select>
+            </div>
+            
+            <div class="modal-field">
+                <label>날짜 *</label>
+                <input type="date" id="scheduleDate">
+            </div>
+            
+            <div class="modal-field">
+                <label>시작 시간 *</label>
+                <input type="time" id="scheduleStartTime">
+            </div>
+            
+            <div class="modal-field">
+                <label>종료 시간 *</label>
+                <input type="time" id="scheduleEndTime">
+            </div>
+            
+            <div class="modal-field">
+                <label>타입</label>
+                <select id="scheduleType" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
+                    <option value="work">정규 근무</option>
+                    <option value="substitute">대타</option>
+                </select>
+            </div>
+            
+            <div class="modal-actions">
+                <button class="btn" onclick="saveSchedule()">💾 저장</button>
+                <button class="btn" onclick="closeScheduleModal()" style="background:#666;">취소</button>
             </div>
         </div>
     </div>
